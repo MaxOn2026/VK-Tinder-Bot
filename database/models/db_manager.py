@@ -16,7 +16,7 @@ class DBManager:
     def get_connection(self):
         return psycopg2.connect(kwargs=self.conn_params)
 
-    def execute_query(self, query, params=None):
+    def execute_query(self, query: str, params: list|None=None):
         conn = self.get_connection()
         try:
             with conn.cursor() as cur:
@@ -29,12 +29,14 @@ class DBManager:
         finally:
             conn.close()
             
-    def execute_many(self, query, params_list):
+    def execute_many(self, query: str, params: list|None=None):
         conn = self.get_connection()
         try:
             with conn.cursor() as cur:
-                cur.executemany(query, params_list)
+                cur.executemany(query, params)
                 conn.commit()
                 return cur.rowcount
         finally:
             conn.close()
+            
+    def create_tables

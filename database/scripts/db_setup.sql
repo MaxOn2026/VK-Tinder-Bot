@@ -39,7 +39,7 @@ CREATE TABLE likes(
 	action VARCHAR(20),CHECK(action IN ('like', 'dislike', 'block', 'view'))
 	created_at TIMESTAMP DEFAULT NOW(),
 	UNIQUE(user_id, liked_user_id)
-)
+);
 
 CREATE TABLE matches(
 	id SERIAL PRIMARY KEY,
