@@ -27,6 +27,7 @@ CREATE TABLE interests(
 );
 
 CREATE TABLE users_interests(
+	id SERIAL PRIMARY KEY,
 	user_id INT REFERENCES users(id),
 	interest_id INT REFERENCES interests(id),
 	PRIMARY KEY(user_id, interest_id)
@@ -36,7 +37,7 @@ CREATE TABLE likes(
 	id SERIAL PRIMARY KEY,
 	user_id INT REFERENCES users(id),
 	liked_user_id INT REFERENCES users(id),
-	action VARCHAR(20),CHECK(action IN ('like', 'dislike', 'block', 'view'))
+	action VARCHAR(20) DEFAULT 'view', CHECK(action IN ('like', 'dislike', 'block', 'view'))
 	created_at TIMESTAMP DEFAULT NOW(),
 	UNIQUE(user_id, liked_user_id)
 );
