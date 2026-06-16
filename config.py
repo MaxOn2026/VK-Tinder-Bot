@@ -1,13 +1,14 @@
-"""Модуль конфигурации. Загружает переменные окружения."""
-import os
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
-GROUP_TOKEN = os.getenv('GROUP_TOKEN')
-USER_TOKEN = os.getenv('USER_TOKEN')
+class Config:
+    HOST = os.getenv('HOST')
+    PORT = os.getenv('PORT')
+    DATABASE = os.getenv('DATABASE')
+    USER = os.getenv('USER')
+    PASSWORD = os.getenv('PASSWORD')
 
-DB_USERNAME = os.getenv('DB_USERNAME')
-DB_PASSWORD = os.getenv('DB_PASSWORD')
-DB_HOST = os.getenv('DB_HOST', 'localhost')
-DB_PORT = os.getenv('DB_PORT', '5432')
+    VK_TOKEN = os.getenv('VK_TOKEN')
+    VK_API_VERSION = ''
