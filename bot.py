@@ -5,17 +5,44 @@ from handlers import (
     handle_start,
     handle_search,
     handle_next,
-    handle_favorite,
+    handle_previous,
+    handle_add_to_favorites,
+    handle_add_to_blocked,
+    handle_main_menu,
+    handle_show_partners,
+    handle_show_favorites,
+    handle_show_blocked,
+    handle_remove_from_favorites,
+    handle_remove_from_blocked,
     handle_unknown
 )
 
 
 # Словарь команд
 COMMANDS = {
+    # Приветствие
     ('начать', 'привет', '/start', 'hi', 'hello'): handle_start,
+    
+    # Поиск
     ('начать поиск',): handle_search,
-    ('дальше',): handle_next,
-    ('в избранное',): handle_favorite,
+    
+    # Навигация
+    ('следующий >>', 'следующий'): handle_next,
+    ('<< предыдущий', 'предыдущий'): handle_previous,
+    
+    # Действия с партнёрами
+    ('❤️ в избранное', 'в избранное'): handle_add_to_favorites,
+    ('🚫 в чёрный список', 'в чёрный список'): handle_add_to_blocked,
+    
+    # Меню
+    ('🏠 главное меню', 'главное меню'): handle_main_menu,
+    ('список партнёров',): handle_show_partners,
+    ('список избранных',): handle_show_favorites,
+    ('чёрный список',): handle_show_blocked,
+    
+    # Удаление
+    ('❌ удалить из избранного',): handle_remove_from_favorites,
+    ('✅ удалить из чёрного списка',): handle_remove_from_blocked,
 }
 
 
@@ -27,7 +54,7 @@ def run_bot():
     
     longpoll = VkBotLongPoll(session, group_id=group_id)
     
-    print("🤖 Бот запущен! Жду сообщения...")
+    print("🤖 Бот запущен! Жду сообщение...")
     print("💡 Напишите боту что-нибудь в ВК\n")
     
     for event in longpoll.listen():

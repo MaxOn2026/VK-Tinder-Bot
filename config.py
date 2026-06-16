@@ -1,21 +1,13 @@
-"""Модуль для работы с VK API."""
-import vk_api
-from config import GROUP_TOKEN, USER_TOKEN
+"""Модуль конфигурации. Загружает переменные окружения."""
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
-def get_vk_session():
-    """Создаёт сессию для группового токена (отправка сообщений)."""
-    session = vk_api.VkApi(token=GROUP_TOKEN)
-    return session
+GROUP_TOKEN = os.getenv('GROUP_TOKEN')
+USER_TOKEN = os.getenv('USER_TOKEN')
 
-
-def get_vk_user_session():
-    """Создаёт сессию для пользовательского токена (поиск людей)."""
-    if not USER_TOKEN:
-        raise ValueError("USER_TOKEN не задан в .env")
-    return vk_api.VkApi(token=USER_TOKEN)
-
-
-def get_group_id(session):
-    """Получает ID группы."""
-    return session.method('groups.getById')[0]['id']
+DB_USERNAME = os.getenv('DB_USERNAME')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_PORT = os.getenv('DB_PORT', '5432')
