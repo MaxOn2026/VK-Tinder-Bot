@@ -17,7 +17,7 @@ from typing import Callable
 from vk_api.bot_longpoll import VkBotEventType, VkBotLongPoll
 
 from database.db_manager import db_manager
-from handlers import (
+from .handlers import (
     handle_add_to_blocked,
     handle_add_to_favorites,
     handle_main_menu,
@@ -32,7 +32,7 @@ from handlers import (
     handle_show_partners,
     handle_start,
 )
-from vk_client import get_group_id, get_vk_session
+from .vk_client import get_group_id, get_vk_session
 
 # Словарь команд
 COMMANDS: dict[tuple[str, ...], Callable] = {

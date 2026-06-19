@@ -9,7 +9,7 @@
     python main.py
     ```
 """
-from bot import run_bot
+from bot_logic.bot import run_bot
 
 
 if __name__ == '__main__':
