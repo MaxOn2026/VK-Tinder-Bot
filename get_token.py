@@ -1,4 +1,15 @@
-"""Скрипт для получения USER_TOKEN через браузер."""
+"""Скрипт для получения USER_TOKEN через браузер.
+
+Этот модуль предоставляет функционал для получения токена пользователя
+ВКонтакте через OAuth авторизацию в браузере. Он запускает локальный HTTP-сервер
+для перехвата токена после авторизации.
+
+Пример:
+    ```python
+    # Запуск процесса получения токена
+    python get_token.py
+    ```
+"""
 import webbrowser
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -7,10 +18,24 @@ import threading
 
 
 class TokenHandler(BaseHTTPRequestHandler):
-    """HTTP-сервер для перехвата токена."""
+    """HTTP-сервер для перехвата токена авторизации.
     
-    def do_GET(self):
-        """Получаем токен из URL."""
+    Этот класс реализует простой HTTP-сервер, который перехватывает токен
+    авторизации из URL-адреса после успешной авторизации пользователя в браузере.
+    
+    Атрибуты:
+        server: Экземпляр HTTPServer для возможного завершения работы.
+    """
+    
+    def do_GET(self) -> None:
+        """Обрабатывает GET-запросы для получения токена.
+        
+        При получении запроса к /callback извлекает токен из URL-фрагмента
+        и выводит его в терминал для копирования.
+        
+        Args:
+            self: Экземпляр класса.
+        """
         parsed = urllib.parse.urlparse(self.path)
         
         if parsed.path == '/callback':
@@ -32,8 +57,8 @@ class TokenHandler(BaseHTTPRequestHandler):
                 response = """
                 <html>
                 <head><title>Token received!</title></head>
-                <body style="font-family: Arial; padding: 50px; text-align: center;">
-                    <h1 style="color: green;">Token received!</h1>
+                <body style=\"font-family: Arial; padding: 50px; text-align: center;\">
+                    <h1 style=\"color: green;\">Token received!</h1>
                     <p>Go back to terminal and copy the token.</p>
                     <p>Then paste it into .env file</p>
                 </body>
@@ -50,12 +75,30 @@ class TokenHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
     
-    def log_message(self, format, *args):
+    def log_message(self, format: str, *args) -> None:
+        """Подавляет стандартное логирование HTTP-запросов.
+        
+        Args:
+            format (str): Формат сообщения (не используется).
+            *args: Аргументы формата (не используются).
+        """
         pass
 
 
-def get_token():
-    """Получает токен через браузер."""
+def get_token() -> None:
+    """Получает токен пользователя через браузер.
+    
+    Запускает локальный HTTP-сервер на порту 8080, открывает браузер для
+    авторизации в ВКонтакте и ожидает получения токена.
+    
+    После успешной авторизации токен выводится в терминал и должен быть
+    скопирован в файл .env.
+    
+    Пример:
+        ```python
+        get_token()
+        ```
+    """
     print("Starting server for token...")
     
     server = HTTPServer(('localhost', 8080), TokenHandler)
@@ -82,4 +125,5 @@ def get_token():
 
 
 if __name__ == '__main__':
+    """Запускает процесс получения токена при выполнении файла напрямую."""
     get_token()

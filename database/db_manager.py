@@ -134,6 +134,8 @@ class DatabaseManager:
         Предупреждение:
             Использование `drop_first=True` приведёт к безвозвратному удалению всех данных!
         """
+        if self.engine is None:
+            raise RuntimeError("База данных не инициализирована. Вызовите db_manager.initialize()")
         if drop_first:
             Base.metadata.drop_all(self.engine)
         Base.metadata.create_all(self.engine)
@@ -161,6 +163,8 @@ class DatabaseManager:
         Raises:
             Exception: Повторно вызывает любое исключение после отката.
         """
+        if self.scoped_session is None:
+            raise RuntimeError("База данных не инициализирована. Вызовите db_manager.initialize()")
         session = self.scoped_session()
         try:
             yield session

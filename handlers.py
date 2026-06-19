@@ -1,5 +1,21 @@
-"""Модуль обработчиков команд бота."""
+"""Модуль обработчиков команд бота VK-Tinder-Bot.
+
+Этот модуль содержит все функции-обработчики для команд бота ВКонтакте:
+приветствие, поиск партнеров, навигация по спискам, управление избранными
+и черным списком. Включает функции отправки сообщений и отображения
+данных пользователей.
+
+Пример:
+    ```python
+    # Использование обработчика
+    handle_start(user_id)
+    handle_search(user_id)
+    ```
+"""
+
 import random
+from typing import Optional
+
 from vk_client import get_vk_session
 from keyboards import (
     create_start_keyboard,
@@ -7,25 +23,50 @@ from keyboards import (
     create_partner_keyboard,
     create_favorites_keyboard,
     create_blocked_keyboard,
+    create_matches_keyboard,
     create_empty_list_keyboard
 )
 from state_manager import state_manager
-from data_storage import (
-    add_to_favorites as db_add_favorite,
-    add_to_blocked as db_add_blocked,
-    remove_from_favorites as db_remove_favorite,
-    remove_from_blocked as db_remove_blocked,
-    add_like,
+from database.repositories.user_repo import get_or_create_user
+from database.repositories.interaction_repo import (
+    add_interaction,
+    add_like_and_check_match,
+    get_user_interactions,
     add_match,
-    add_view,
-    get_favorites,
-    get_blocked,
-    get_matches
+    remove_interaction,
+    get_matches,
 )
 
 
-def send_message(user_id, message, attachment=None, keyboard=None):
-    """Отправляет сообщение пользователю."""
+def send_message(user_id: int, message: str, attachment: Optional[str] = None, keyboard: Optional[str] = None) -> None:
+    """Отправляет сообщение пользователю через VK API.
+    
+    Отправляет текстовое сообщение с возможным добавлением вложения
+    (фотографии) и клавиатуры для интерактивного взаимодействия.
+    
+    Args:
+        user_id (int): Идентификатор получателя сообщения.
+        message (str): Текст сообщения для отправки.
+        attachment (str, optional): Вложение для сообщения (например, 'photo123_456').
+        keyboard (str, optional): JSON-код клавиатуры для сообщения.
+    
+    Raises:
+        Exception: При ошибке отправки сообщения через VK API.
+    
+    Пример:
+        ```python
+        # Отправка простого сообщения
+        send_message(123456789, "Привет!")
+        
+        # Отправка сообщения с вложением и клавиатурой
+        send_message(
+            123456789,
+            "Вот ваша фотография!",
+            attachment="photo123_456",
+            keyboard=keyboard_json
+        )
+        ```
+    """
     vk = get_vk_session().get_api()
     params = {
         'user_id': user_id,
@@ -40,8 +81,30 @@ def send_message(user_id, message, attachment=None, keyboard=None):
     vk.messages.send(**params)
 
 
-def handle_start(user_id):
-    """Обработка приветствия."""
+def handle_start(user_id: int) -> None:
+    """Обрабатывает команду приветствия и начало работы с ботом.
+    
+    Регистрирует нового пользователя в базе данных и отправляет
+    приветственное сообщение с инструкцией и клавиатурой.
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке регистрации пользователя в БД.
+    
+    Пример:
+        ```python
+        # Обработка команды приветствия
+        handle_start(user_id=123456789)
+        ```
+    """
+    # Регистрация пользователя в БД
+    get_or_create_user(user_id)
+
     send_message(
         user_id,
         "Привет! Я VKinder Bot. Найду тебе пару! 👇",
@@ -49,15 +112,63 @@ def handle_start(user_id):
     )
 
 
-def handle_search(user_id):
-    """Обработка 'Начать поиск'."""
-    from vk_search import get_user_info, search_candidates
+def handle_search(user_id: int) -> None:
+    """Обрабатывает команду начала поиска партнеров.
     
+    Инициирует процесс поиска партнеров на основе данных пользователя:
+    получает информацию из VK API, обновляет предпочтения в БД,
+    выполняет поиск подходящих кандидатов и сохраняет состояние
+    пользователя для навигации по списку.
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке получения данных из VK API или БД.
+    
+    Пример:
+        ```python
+        # Начало поиска партнеров
+        handle_search(user_id=123456789)
+        ```
+    """
+    from vk_search import search_candidates
+    from database.repositories.user_repo import get_user
+    from database.repositories.profile_repo import get_or_create_profile
+    
+    # Получаем или создаём пользователя с данными из VK
+    get_or_create_user(user_id)
+    
+    # Получаем данные из БД (они уже подтянуты из VK при создании)
+    bot_user = get_user(user_id)
+    
+    if not bot_user:
+        send_message(user_id, "❌ Не удалось получить ваши данные. Попробуйте позже.")
+        return
+    
+    # Получаем информацию из VK для поиска
+    from vk_search import get_user_info
     user_info = get_user_info(user_id)
     
     if not user_info:
         send_message(user_id, "❌ Не удалось получить ваши данные. Попробуйте позже.")
         return
+    
+    # Обновляем предпочтения в БД из актуальных данных VK
+    from datetime import date
+    birth_year = None
+    if user_info.get('age'):
+        birth_year = date.today().year - user_info['age']
+    
+    get_or_create_profile(
+        vk_id=user_id,
+        birth_year=birth_year,
+        gender=user_info.get('sex', 0),
+        city=user_info.get('city_name'),
+    )
     
     print(f"📊 Данные пользователя {user_id}:")
     print(f"   Пол: {user_info['sex']} (1-жен, 2-муж)")
@@ -82,8 +193,28 @@ def handle_search(user_id):
     show_current_partner(user_id)
 
 
-def show_current_partner(user_id):
-    """Показывает текущего партнёра."""
+def show_current_partner(user_id: int) -> None:
+    """Отображает текущего кандидата из списка партнеров.
+    
+    Получает текущего кандидата из состояния пользователя, формирует
+    сообщение с информацией о нем и фотографиями, отправляет сообщение
+    пользователю и обновляет состояние.
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке формирования сообщения или отправки.
+    
+    Пример:
+        ```python
+        # Показ текущего партнера
+        show_current_partner(user_id=123456789)
+        ```
+    """
     from vk_search import format_candidate_info, get_top_photos
     
     state = state_manager.get_state(user_id)
@@ -106,8 +237,8 @@ def show_current_partner(user_id):
     candidate = candidates[current_index]
     candidate_id = candidate['id']
     
-    # Записываем просмотр
-    add_view(user_id, candidate_id)
+    # Записываем просмотр в БД
+    add_interaction(user_id, candidate_id, 'view')
     
     message = format_candidate_info(candidate)
     attachment = get_top_photos(candidate_id, count=3)
@@ -118,8 +249,28 @@ def show_current_partner(user_id):
     print(f" Показан кандидат: {candidate['first_name']} {candidate['last_name']} (ID: {candidate_id})")
 
 
-def handle_next(user_id):
-    """Обработка 'Следующий >>'."""
+def handle_next(user_id: int) -> None:
+    """Обрабатывает команду перехода к следующему кандидату.
+    
+    Обновляет текущий индекс в состоянии пользователя и отображает
+    следующего кандидата в зависимости от текущего режима (partners,
+    favorites, blocked, matches).
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке обновления состояния или отображения.
+    
+    Пример:
+        ```python
+        # Переход к следующему кандидату
+        handle_next(user_id=123456789)
+        ```
+    """
     state = state_manager.get_state(user_id)
     if not state:
         send_message(user_id, " Сначала нажмите 'Начать поиск'")
@@ -133,10 +284,31 @@ def handle_next(user_id):
         show_current_favorite(user_id)
     elif state['mode'] == 'blocked':
         show_current_blocked(user_id)
+    elif state['mode'] == 'matches':
+        show_current_match(user_id)
 
 
-def handle_previous(user_id):
-    """Обработка '<< Предыдущий'."""
+def handle_previous(user_id: int) -> None:
+    """Обрабатывает команду перехода к предыдущему кандидату.
+    
+    Обновляет текущий индекс в состоянии пользователя и отображает
+    предыдущего кандидата в зависимости от текущего режима.
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке обновления состояния или отображения.
+    
+    Пример:
+        ```python
+        # Переход к предыдущему кандидату
+        handle_previous(user_id=123456789)
+        ```
+    """
     state = state_manager.get_state(user_id)
     if not state:
         return
@@ -149,10 +321,32 @@ def handle_previous(user_id):
         show_current_favorite(user_id)
     elif state['mode'] == 'blocked':
         show_current_blocked(user_id)
+    elif state['mode'] == 'matches':
+        show_current_match(user_id)
 
 
-def handle_add_to_favorites(user_id):
-    """Обработка '❤️ В избранное'."""
+def handle_add_to_favorites(user_id: int) -> None:
+    """Обрабатывает команду добавления кандидата в избранное.
+    
+    Добавляет текущего кандидата в список избранных пользователя,
+    проверяет наличие взаимного лайка и уведомляет пользователя
+    о результате (match или просто добавление в избранное).
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке добавления в БД или проверки матча.
+    
+    Пример:
+        ```python
+        # Добавление в избранное
+        handle_add_to_favorites(user_id=123456789)
+        ```
+    """
     state = state_manager.get_state(user_id)
     if not state:
         return
@@ -165,11 +359,11 @@ def handle_add_to_favorites(user_id):
         candidate_id = candidate['id']
         
         # Добавляем в БД
-        added = db_add_favorite(user_id, candidate_id)
+        added = add_interaction(user_id, candidate_id, 'like')
         
         if added:
             # Проверяем match
-            is_match = add_like(user_id, candidate_id)
+            is_match = add_like_and_check_match(user_id, candidate_id)
             
             if is_match:
                 add_match(user_id, candidate_id)
@@ -192,8 +386,27 @@ def handle_add_to_favorites(user_id):
             )
 
 
-def handle_add_to_blocked(user_id):
-    """Обработка '🚫 В чёрный список'."""
+def handle_add_to_blocked(user_id: int) -> None:
+    """Обрабатывает команду добавления кандидата в черный список.
+    
+    Добавляет текущего кандидата в черный список пользователя
+    и уведомляет о результате операции.
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке добавления в черный список.
+    
+    Пример:
+        ```python
+        # Добавление в черный список
+        handle_add_to_blocked(user_id=123456789)
+        ```
+    """
     state = state_manager.get_state(user_id)
     if not state:
         return
@@ -205,7 +418,7 @@ def handle_add_to_blocked(user_id):
         candidate = candidates[current_index]
         candidate_id = candidate['id']
         
-        added = db_add_blocked(user_id, candidate_id)
+        added = add_interaction(user_id, candidate_id, 'block')
         
         if added:
             send_message(
@@ -221,8 +434,27 @@ def handle_add_to_blocked(user_id):
             )
 
 
-def handle_main_menu(user_id):
-    """Обработка '🏠 Главное меню'."""
+def handle_main_menu(user_id: int) -> None:
+    """Обрабатывает команду возврата в главное меню.
+    
+    Сбрасывает состояние пользователя до главного меню и отправляет
+    соответствующее сообщение с клавиатурой главного меню.
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке обновления состояния.
+    
+    Пример:
+        ```python
+        # Возврат в главное меню
+        handle_main_menu(user_id=123456789)
+        ```
+    """
     state_manager.set_state(user_id, {
         'mode': 'main_menu',
         'candidates': [],
@@ -236,13 +468,32 @@ def handle_main_menu(user_id):
     )
 
 
-def handle_show_partners(user_id):
-    """Обработка 'Список партнёров'."""
+def handle_show_partners(user_id: int) -> None:
+    """Обрабатывает команду отображения списка партнеров.
+    
+    Отображает список партнеров, если он уже был сгенерирован,
+    или направляет пользователя к началу поиска.
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке отображения списка партнеров.
+    
+    Пример:
+        ```python
+        # Показ списка партнеров
+        handle_show_partners(user_id=123456789)
+        ```
+    """
     state = state_manager.get_state(user_id)
     if not state or not state.get('candidates'):
         send_message(
             user_id,
-            " Список партнёров пуст.\nСначала нажмите 'Начать поиск'",
+            " Список партнеров пуст.\nСначала нажмите 'Начать поиск'",
             keyboard=create_start_keyboard()
         )
         return
@@ -251,9 +502,30 @@ def handle_show_partners(user_id):
     show_current_partner(user_id)
 
 
-def handle_show_favorites(user_id):
-    """Обработка 'Список избранных'."""
-    favorites_ids = get_favorites(user_id)
+def handle_show_favorites(user_id: int) -> None:
+    """Обрабатывает команду отображения списка избранных.
+    
+    Загружает список избранных пользователей из базы данных,
+    получает актуальные данные из VK API и отображает первого
+    избранный в списке.
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке загрузки данных из БД или VK API.
+    
+    Пример:
+        ```python
+        # Показ списка избранных
+        handle_show_favorites(user_id=123456789)
+        ```
+    """
+    # Загружаем из БД
+    favorites_ids = get_user_interactions(user_id, action='like')
     
     if not favorites_ids:
         send_message(
@@ -283,8 +555,27 @@ def handle_show_favorites(user_id):
         send_message(user_id, "❌ Не удалось загрузить список избранных")
 
 
-def show_current_favorite(user_id):
-    """Показывает текущего избранного."""
+def show_current_favorite(user_id: int) -> None:
+    """Отображает текущего избранного пользователя.
+    
+    Формирует сообщение с информацией об избранном пользователе
+    (имя, возраст, город, ссылка на профиль) и отправляет его.
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке формирования или отправки сообщения.
+    
+    Пример:
+        ```python
+        # Показ текущего избранного
+        show_current_favorite(user_id=123456789)
+        ```
+    """
     state = state_manager.get_state(user_id)
     if not state:
         return
@@ -328,9 +619,29 @@ def show_current_favorite(user_id):
     send_message(user_id, message, keyboard=keyboard)
 
 
-def handle_show_blocked(user_id):
-    """Обработка 'Чёрный список'."""
-    blocked_ids = get_blocked(user_id)
+def handle_show_blocked(user_id: int) -> None:
+    """Обрабатывает команду отображения черного списка.
+    
+    Загружает список заблокированных пользователей из базы данных,
+    получает данные из VK API и отображает первого заблокированного.
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке загрузки данных из БД или VK API.
+    
+    Пример:
+        ```python
+        # Показ черного списка
+        handle_show_blocked(user_id=123456789)
+        ```
+    """
+    # Загружаем из БД
+    blocked_ids = get_user_interactions(user_id, action='block')
     
     if not blocked_ids:
         send_message(
@@ -358,8 +669,27 @@ def handle_show_blocked(user_id):
         send_message(user_id, "❌ Не удалось загрузить чёрный список")
 
 
-def show_current_blocked(user_id):
-    """Показывает текущего заблокированного."""
+def show_current_blocked(user_id: int) -> None:
+    """Отображает текущего заблокированного пользователя.
+    
+    Формирует сообщение с информацией о заблокированном пользователе
+    и отправляет его с соответствующей клавиатурой.
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке формирования или отправки сообщения.
+    
+    Пример:
+        ```python
+        # Показ текущего заблокированного
+        show_current_blocked(user_id=123456789)
+        ```
+    """
     state = state_manager.get_state(user_id)
     if not state:
         return
@@ -403,8 +733,27 @@ def show_current_blocked(user_id):
     send_message(user_id, message, keyboard=keyboard)
 
 
-def handle_remove_from_favorites(user_id):
-    """Обработка '❌ Удалить из избранного'."""
+def handle_remove_from_favorites(user_id: int) -> None:
+    """Обрабатывает команду удаления из избранного.
+    
+    Удаляет текущего избранного пользователя из списка избранных
+    в базе данных и уведомляет пользователя о результате.
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке удаления из БД.
+    
+    Пример:
+        ```python
+        # Удаление из избранного
+        handle_remove_from_favorites(user_id=123456789)
+        ```
+    """
     state = state_manager.get_state(user_id)
     if not state:
         return
@@ -416,55 +765,183 @@ def handle_remove_from_favorites(user_id):
         favorite = favorites_list[current_index]
         candidate_id = favorite['id']
         
-        removed = db_remove_favorite(user_id, candidate_id)
+        # Удаляем из БД
+        removed = remove_interaction(user_id, candidate_id, 'like')
         
-        if removed:
-            send_message(
-                user_id,
-                f"❌ {favorite['first_name']} удалена из избранного",
-                keyboard=create_main_menu_keyboard()
-            )
-        else:
-            send_message(
-                user_id,
-                f"⚠️ {favorite['first_name']} не в избранном",
-                keyboard=create_main_menu_keyboard()
-            )
+        send_message(
+            user_id,
+            f"❌ {favorite['first_name']} удалена из избранного",
+            keyboard=create_main_menu_keyboard()
+        )
+    else:
+        send_message(
+            user_id,
+            f"⚠️ Нечего удалять",
+            keyboard=create_main_menu_keyboard()
+        )
 
 
-def handle_remove_from_blocked(user_id):
-    """Обработка '✅ Удалить из чёрного списка'."""
+def handle_remove_from_blocked(user_id: int) -> None:
+    """Обрабатывает команду удаления из черного списка.
+    
+    Удаляет текущего заблокированного пользователя из черного списка
+    в базе данных и уведомляет пользователя о результате.
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке удаления из БД.
+    
+    Пример:
+        ```python
+        # Удаление из черного списка
+        handle_remove_from_blocked(user_id=123456789)
+        ```
+    """
     state = state_manager.get_state(user_id)
     if not state:
         return
-    
+
     blocked_list = state.get('blocked_list', [])
     current_index = state['current_index']
-    
+
     if current_index < len(blocked_list):
         blocked_user = blocked_list[current_index]
         candidate_id = blocked_user['id']
-        
-        removed = db_remove_blocked(user_id, candidate_id)
-        
-        if removed:
-            send_message(
-                user_id,
-                f"✅ {blocked_user['first_name']} удалена из чёрного списка",
-                keyboard=create_main_menu_keyboard()
-            )
-        else:
-            send_message(
-                user_id,
-                f"⚠️ {blocked_user['first_name']} не в чёрном списке",
-                keyboard=create_main_menu_keyboard()
-            )
+
+        # Удаляем из БД
+        removed = remove_interaction(user_id, candidate_id, 'block')
+
+        send_message(
+            user_id,
+            f"✅ {blocked_user['first_name']} удалена из чёрного списка",
+            keyboard=create_main_menu_keyboard()
+        )
+    else:
+        send_message(
+            user_id,
+            f"⚠️ Нечего удалять",
+            keyboard=create_main_menu_keyboard()
+        )
 
 
-def handle_unknown(user_id):
-    """Обработка неизвестной команды."""
-    send_message(
-        user_id,
-        "❓ Неизвестная команда.\nИспользуйте кнопки меню 👇",
-        keyboard=create_main_menu_keyboard()
-    )
+def handle_show_matches(user_id: int) -> None:
+    """Обрабатывает команду отображения списка матчей.
+    
+    Загружает список пользователей, с которыми есть взаимный лайк
+    (матчи), получает данные из VK API и отображает первого матча.
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке загрузки данных из БД или VK API.
+    
+    Пример:
+        ```python
+        # Показ списка матчей
+        handle_show_matches(user_id=123456789)
+        ```
+    """
+    match_ids = get_matches(user_id)
+
+    if not match_ids:
+        send_message(
+            user_id,
+            "📭 Список матчей пуст",
+            keyboard=create_main_menu_keyboard()
+        )
+        return
+
+    vk_user = get_vk_session().get_api()
+
+    try:
+        users_data = vk_user.users.get(user_ids=match_ids[:20], fields='sex,city,bdate')
+
+        state_manager.set_state(user_id, {
+            'mode': 'matches',
+            'matches_list': users_data,
+            'current_index': 0
+        })
+
+        show_current_match(user_id)
+
+    except Exception as e:
+        print(f"❌ Ошибка получения данных матчей: {e}")
+        send_message(user_id, "❌ Не удалось загрузить список матчей")
+
+
+def show_current_match(user_id: int) -> None:
+    """Отображает текущего матча (пользователя с взаимным лайком).
+    
+    Формирует сообщение с информацией о матче и отправляет его
+    с соответствующей клавиатурой.
+    
+    Args:
+        user_id (int): Идентификатор пользователя ВКонтакте.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: При ошибке формирования или отправки сообщения.
+    
+    Пример:
+        ```python
+        # Показ текущего матча
+        show_current_match(user_id=123456789)
+        ```
+    """
+    state = state_manager.get_state(user_id)
+    if not state:
+        return
+
+    matches = state.get('matches_list', [])
+    current_index = state['current_index']
+
+    if current_index >= len(matches):
+        send_message(
+            user_id,
+            "📭 Больше нет матчей",
+            keyboard=create_main_menu_keyboard()
+        )
+        state_manager.set_state(user_id, {**state, 'mode': 'main_menu'})
+        return
+
+    match_user = matches[current_index]
+
+    first_name = match_user.get('first_name', '')
+    last_name = match_user.get('last_name', '')
+    match_id = match_user['id']
+    profile_link = f"https://vk.com/id{match_id}"
+
+    age_text = ""
+    if 'bdate' in match_user:
+        try:
+            parts = match_user['bdate'].split('.')
+            if len(parts) == 3:
+                age = 2026 - int(parts[2])
+                age_text = f", {age} лет"
+        except:
+            pass
+
+    city_text = ""
+    if 'city' in match_user:
+        city_text = f", {match_user['city'].get('title', '')}"
+
+    parts = []
+    parts.append(f"🎉 {first_name} {last_name}{age_text}{city_text}")
+    parts.append(f"🔗 {profile_link}")
+    parts.append(f"📊 {current_index + 1} из {len(matches)}")
+    message = "\n".join(parts)
+
+    keyboard = create_matches_keyboard(current_index, len(matches))
+
+    send_message(user_id, message, keyboard=keyboard)

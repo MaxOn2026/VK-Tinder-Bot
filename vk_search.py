@@ -1,5 +1,7 @@
 """Модуль для поиска людей через VK API."""
 from vk_client import get_vk_user_session
+from database.repositories.interaction_repo import get_user_interactions
+from database.repositories.profile_repo import save_candidate
 
 
 def get_user_info(user_id):
@@ -68,11 +70,10 @@ def search_candidates(user_info, user_id, count=20):
         response = vk_user.users.search(**params)
         items = response.get('items', [])
         
-        # Получаем списки для фильтрации
-        from data_storage import get_favorites, get_blocked, get_views
-        favorites = get_favorites(user_id)
-        blocked = get_blocked(user_id)
-        views = get_views(user_id)
+        # Получаем списки для фильтрации из БД
+        favorites = set(get_user_interactions(user_id, action='like'))
+        blocked = set(get_user_interactions(user_id, action='block'))
+        views = set(get_user_interactions(user_id, action='view'))
         
         # Фильтруем
         filtered = []
@@ -98,6 +99,12 @@ def search_candidates(user_info, user_id, count=20):
             # Пропускаем уже просмотренных
             if candidate_id in views:
                 continue
+            
+            # Кэшируем кандидата в БД
+            try:
+                save_candidate(item)
+            except Exception as e:
+                print(f"⚠️ Ошибка кэширования кандидата {candidate_id}: {e}")
             
             filtered.append(item)
         
