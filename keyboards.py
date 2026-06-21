@@ -1,258 +1,104 @@
-"""Модуль для создания клавиатур бота."""
-import json
+"""Модуль клавиатур для бота."""
+from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 
 
 def create_start_keyboard():
-    """Создаёт стартовую клавиатуру с кнопкой 'Начать поиск'."""
-    keyboard = {
-        "one_time": False,
-        "inline": False,
-        "buttons": [
-            [{
-                "action": {
-                    "type": "text",
-                    "payload": {"command": "start_search"},
-                    "label": "Начать поиск"
-                },
-                "color": "positive"
-            }]
-        ]
-    }
-    return json.dumps(keyboard, ensure_ascii=False).encode('utf-8').decode('utf-8')
+    """Создаёт клавиатуру для начала работы."""
+    keyboard = VkKeyboard(one_time=False)
+    
+    keyboard.add_button('🔍 Начать поиск', color=VkKeyboardColor.POSITIVE)
+    keyboard.add_line()
+    keyboard.add_button('📊 Статистика', color=VkKeyboardColor.PRIMARY)
+    
+    return keyboard.get_keyboard()
 
 
 def create_main_menu_keyboard():
     """Создаёт клавиатуру главного меню."""
-    keyboard = {
-        "one_time": False,
-        "inline": False,
-        "buttons": [
-            [{
-                "action": {
-                    "type": "text",
-                    "payload": {"command": "start_search"},
-                    "label": "Начать поиск"
-                },
-                "color": "positive"
-            }],
-            [{
-                "action": {
-                    "type": "text",
-                    "payload": {"command": "show_partners"},
-                    "label": "Список партнёров"
-                },
-                "color": "primary"
-            }],
-            [{
-                "action": {
-                    "type": "text",
-                    "payload": {"command": "show_favorites"},
-                    "label": "Список избранных"
-                },
-                "color": "primary"
-            },
-            {
-                "action": {
-                    "type": "text",
-                    "payload": {"command": "show_blocked"},
-                    "label": "Чёрный список"
-                },
-                "color": "negative"
-            }]
-        ]
-    }
-    return json.dumps(keyboard, ensure_ascii=False).encode('utf-8').decode('utf-8')
+    keyboard = VkKeyboard(one_time=False)
+    
+    keyboard.add_button('🔍 Начать поиск', color=VkKeyboardColor.POSITIVE)
+    keyboard.add_button('📊 Статистика', color=VkKeyboardColor.PRIMARY)
+    
+    keyboard.add_line()
+    keyboard.add_button('❤️ Список избранных', color=VkKeyboardColor.POSITIVE)
+    keyboard.add_button('🚫 Чёрный список', color=VkKeyboardColor.NEGATIVE)
+    
+    keyboard.add_line()
+    keyboard.add_button('🎉 Список партнёров', color=VkKeyboardColor.POSITIVE)
+    keyboard.add_button('⚙️ Настройки', color=VkKeyboardColor.PRIMARY)
+    
+    return keyboard.get_keyboard()
 
 
-def create_partner_keyboard(current_index, total_count):
-    """Создаёт клавиатуру для просмотра партнёров."""
-    keyboard = {
-        "one_time": False,
-        "inline": False,
-        "buttons": []
-    }
+def create_partner_keyboard(current_index, total):
+    """Создаёт клавиатуру для просмотра кандидата."""
+    keyboard = VkKeyboard(one_time=False)
     
-    # Первая строка: навигация
-    row1 = []
+    keyboard.add_button('❤️ В избранное', color=VkKeyboardColor.POSITIVE)
+    keyboard.add_button('🚫 В чёрный список', color=VkKeyboardColor.NEGATIVE)
     
-    if current_index > 0:
-        row1.append({
-            "action": {
-                "type": "text",
-                "payload": {"command": "previous"},
-                "label": "<< Предыдущий"
-            },
-            "color": "secondary"
-        })
+    keyboard.add_line()
+    keyboard.add_button('<< Предыдущий', color=VkKeyboardColor.SECONDARY)
+    keyboard.add_button('Следующий >>', color=VkKeyboardColor.SECONDARY)
     
-    if current_index < total_count - 1:
-        row1.append({
-            "action": {
-                "type": "text",
-                "payload": {"command": "next"},
-                "label": "Следующий >>"
-            },
-            "color": "secondary"
-        })
+    keyboard.add_line()
+    keyboard.add_button(' Главное меню', color=VkKeyboardColor.PRIMARY)
     
-    if row1:
-        keyboard["buttons"].append(row1)
-    
-    # Вторая строка: действия
-    keyboard["buttons"].append([
-        {
-            "action": {
-                "type": "text",
-                "payload": {"command": "add_to_favorites"},
-                "label": "❤️ В избранное"
-            },
-            "color": "positive"
-        },
-        {
-            "action": {
-                "type": "text",
-                "payload": {"command": "add_to_blocked"},
-                "label": "🚫 В чёрный список"
-            },
-            "color": "negative"
-        }
-    ])
-    
-    # Третья строка: главное меню
-    keyboard["buttons"].append([{
-        "action": {
-            "type": "text",
-            "payload": {"command": "main_menu"},
-            "label": "🏠 Главное меню"
-        },
-        "color": "primary"
-    }])
-    
-    return json.dumps(keyboard, ensure_ascii=False).encode('utf-8').decode('utf-8')
+    return keyboard.get_keyboard()
 
 
-def create_favorites_keyboard(current_index, total_count):
-    """Создаёт клавиатуру для просмотра избранного."""
-    keyboard = {
-        "one_time": False,
-        "inline": False,
-        "buttons": []
-    }
+def create_favorites_keyboard(current_index, total):
+    """Создаёт клавиатуру для списка избранных."""
+    keyboard = VkKeyboard(one_time=False)
     
-    row = []
+    keyboard.add_button('❌ Удалить из избранного', color=VkKeyboardColor.NEGATIVE)
     
-    if current_index > 0:
-        row.append({
-            "action": {
-                "type": "text",
-                "payload": {"command": "previous"},
-                "label": "<< Предыдущий"
-            },
-            "color": "secondary"
-        })
+    keyboard.add_line()
+    keyboard.add_button('<< Предыдущий', color=VkKeyboardColor.SECONDARY)
+    keyboard.add_button('Следующий >>', color=VkKeyboardColor.SECONDARY)
     
-    if current_index < total_count - 1:
-        row.append({
-            "action": {
-                "type": "text",
-                "payload": {"command": "next"},
-                "label": "Следующий >>"
-            },
-            "color": "secondary"
-        })
+    keyboard.add_line()
+    keyboard.add_button('🏠 Главное меню', color=VkKeyboardColor.PRIMARY)
     
-    if row:
-        keyboard["buttons"].append(row)
-    
-    keyboard["buttons"].append([{
-        "action": {
-            "type": "text",
-            "payload": {"command": "remove_from_favorites"},
-            "label": "❌ Удалить из избранного"
-        },
-        "color": "negative"
-    }])
-    
-    keyboard["buttons"].append([{
-        "action": {
-            "type": "text",
-            "payload": {"command": "main_menu"},
-            "label": "🏠 Главное меню"
-        },
-        "color": "primary"
-    }])
-    
-    return json.dumps(keyboard, ensure_ascii=False).encode('utf-8').decode('utf-8')
+    return keyboard.get_keyboard()
 
 
-def create_blocked_keyboard(current_index, total_count):
-    """Создаёт клавиатуру для просмотра чёрного списка."""
-    keyboard = {
-        "one_time": False,
-        "inline": False,
-        "buttons": []
-    }
+def create_blocked_keyboard(current_index, total):
+    """Создаёт клавиатуру для чёрного списка."""
+    keyboard = VkKeyboard(one_time=False)
     
-    row = []
+    keyboard.add_button('✅ Удалить из ЧС', color=VkKeyboardColor.POSITIVE)
     
-    if current_index > 0:
-        row.append({
-            "action": {
-                "type": "text",
-                "payload": {"command": "previous"},
-                "label": "<< Предыдущий"
-            },
-            "color": "secondary"
-        })
+    keyboard.add_line()
+    keyboard.add_button('<< Предыдущий', color=VkKeyboardColor.SECONDARY)
+    keyboard.add_button('Следующий >>', color=VkKeyboardColor.SECONDARY)
     
-    if current_index < total_count - 1:
-        row.append({
-            "action": {
-                "type": "text",
-                "payload": {"command": "next"},
-                "label": "Следующий >>"
-            },
-            "color": "secondary"
-        })
+    keyboard.add_line()
+    keyboard.add_button('🏠 Главное меню', color=VkKeyboardColor.PRIMARY)
     
-    if row:
-        keyboard["buttons"].append(row)
-    
-    keyboard["buttons"].append([{
-        "action": {
-            "type": "text",
-            "payload": {"command": "remove_from_blocked"},
-            "label": "✅ Удалить из чёрного списка"
-        },
-        "color": "positive"
-    }])
-    
-    keyboard["buttons"].append([{
-        "action": {
-            "type": "text",
-            "payload": {"command": "main_menu"},
-            "label": "🏠 Главное меню"
-        },
-        "color": "primary"
-    }])
-    
-    return json.dumps(keyboard, ensure_ascii=False).encode('utf-8').decode('utf-8')
+    return keyboard.get_keyboard()
 
 
 def create_empty_list_keyboard():
     """Создаёт клавиатуру для пустого списка."""
-    keyboard = {
-        "one_time": False,
-        "inline": False,
-        "buttons": [
-            [{
-                "action": {
-                    "type": "text",
-                    "payload": {"command": "main_menu"},
-                    "label": "🏠 Главное меню"
-                },
-                "color": "primary"
-            }]
-        ]
-    }
-    return json.dumps(keyboard, ensure_ascii=False).encode('utf-8').decode('utf-8')
+    keyboard = VkKeyboard(one_time=False)
+    
+    keyboard.add_button('🔍 Начать поиск', color=VkKeyboardColor.POSITIVE)
+    keyboard.add_line()
+    keyboard.add_button('🏠 Главное меню', color=VkKeyboardColor.PRIMARY)
+    
+    return keyboard.get_keyboard()
+
+
+def create_settings_keyboard():
+    """Создаёт клавиатуру настроек."""
+    keyboard = VkKeyboard(one_time=False)
+    
+    keyboard.add_button('📅 Изменить возраст', color=VkKeyboardColor.PRIMARY)
+    keyboard.add_button('📍 Изменить расстояние', color=VkKeyboardColor.PRIMARY)
+    
+    keyboard.add_line()
+    keyboard.add_button('🏠 Главное меню', color=VkKeyboardColor.SECONDARY)
+    
+    return keyboard.get_keyboard()

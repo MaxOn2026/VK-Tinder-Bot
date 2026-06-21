@@ -28,11 +28,9 @@ def get_or_create_user_id(user_id: int) -> int:
             )
             session.add(user)
             session.commit()
-            user_id_internal = user.id
-        else:
-            user_id_internal = user.id
+            return user.id
         
-        return user_id_internal
+        return user.id
 
 
 def get_or_create_profile_id(vk_id: int) -> int:
@@ -44,24 +42,25 @@ def get_or_create_profile_id(vk_id: int) -> int:
             profile = VKProfile(vk_id=vk_id)
             session.add(profile)
             session.commit()
-            profile_id = profile.id
-        else:
-            profile_id = profile.id
+            return profile.id
         
-        return profile_id
+        return profile.id
 
 
-def add_like(user_id: int, candidate_vk_id: int) -> bool:
-    """Добавляет лайк. Возвращает True, если это match."""
+def add_like(user_id: int, candidate_vk_id: int) -> tuple:
+    """
+    Добавляет лайк.
+    Возвращает кортеж: (is_match: bool, match_user_vk_id: Optional[int])
+    """
     user_db_id = get_or_create_user_id(user_id)
     profile_db_id = get_or_create_profile_id(candidate_vk_id)
     
     with db_manager.get_session() as session:
-        # Проверяем, лайкнул ли этот профиль текущего пользователя
         reverse_user = session.query(BotUser).filter(BotUser.vk_id == candidate_vk_id).first()
         reverse_profile = session.query(VKProfile).filter(VKProfile.vk_id == user_id).first()
         
         is_match = False
+        matched_user_vk_id = None
         
         if reverse_user and reverse_profile:
             reverse_interaction = session.query(UserInteraction).filter(
@@ -73,7 +72,6 @@ def add_like(user_id: int, candidate_vk_id: int) -> bool:
             ).first()
             
             if reverse_interaction:
-                # Создаём match
                 user1_id = min(user_db_id, reverse_user.id)
                 user2_id = max(user_db_id, reverse_user.id)
                 
@@ -92,9 +90,11 @@ def add_like(user_id: int, candidate_vk_id: int) -> bool:
                         is_active=True
                     )
                     session.add(match)
+                    session.commit()
+                    
                     is_match = True
+                    matched_user_vk_id = candidate_vk_id
         
-        # Добавляем лайк
         existing = session.query(UserInteraction).filter(
             and_(
                 UserInteraction.user_id == user_db_id,
@@ -112,12 +112,11 @@ def add_like(user_id: int, candidate_vk_id: int) -> bool:
             session.add(interaction)
         
         session.commit()
-        return is_match
+        return is_match, matched_user_vk_id
 
 
 def add_match(user_id: int, candidate_vk_id: int):
     """Создаёт match (если ещё не создан)."""
-    # Match уже создан в add_like, так что ничего не делаем
     pass
 
 
@@ -340,3 +339,37 @@ def get_matches(user_id: int) -> list:
                 })
         
         return match_users
+
+
+def get_user_settings(user_id: int) -> dict:
+    """Получает настройки поиска пользователя."""
+    with db_manager.get_session() as session:
+        user = session.query(BotUser).filter(BotUser.vk_id == user_id).first()
+        if not user:
+            return {}
+        
+        return {
+            "age_min": user.age_min,
+            "age_max": user.age_max,
+            "max_distance": user.max_distance,
+            "looking_for": user.looking_for,
+            "city": user.city
+        }
+
+
+def update_user_settings(user_id: int, settings: dict) -> bool:
+    """Обновляет настройки поиска пользователя."""
+    with db_manager.get_session() as session:
+        user = session.query(BotUser).filter(BotUser.vk_id == user_id).first()
+        if not user:
+            return False
+        
+        if "age_min" in settings:
+            user.age_min = settings["age_min"]
+        if "age_max" in settings:
+            user.age_max = settings["age_max"]
+        if "max_distance" in settings:
+            user.max_distance = settings["max_distance"]
+        
+        session.commit()
+        return True

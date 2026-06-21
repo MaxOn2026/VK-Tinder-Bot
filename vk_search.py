@@ -1,159 +1,120 @@
-"""Модуль для поиска людей через VK API."""
+"""Модуль поиска кандидатов ВКонтакте."""
+import logging
 from vk_client import get_vk_user_session
 
+logger = logging.getLogger(__name__)
 
-def get_user_info(user_id):
-    """
-    Получает информацию о пользователе (пол, возраст, город).
-    """
+
+def get_user_info(user_id: int) -> dict:
+    """Получает информацию о пользователе через VK API."""
     vk_user = get_vk_user_session().get_api()
     
     try:
         response = vk_user.users.get(
             user_ids=user_id,
-            fields='sex,city,bdate'
-        )[0]
+            fields='sex,city,bdate,photo_200'
+        )
         
+        if not response:
+            return None
+        
+        user = response[0]
+        
+        # Определяем пол
+        sex = user.get('sex', 0)  # 1-жен, 2-муж
+        
+        # Определяем возраст
         age = None
-        if 'bdate' in response:
+        if 'bdate' in user:
             try:
-                parts = response['bdate'].split('.')
+                parts = user['bdate'].split('.')
                 if len(parts) == 3:
-                    birth_year = int(parts[2])
-                    age = 2026 - birth_year
+                    age = 2026 - int(parts[2])
             except:
                 pass
         
-        city_id = response.get('city', {}).get('id')
-        city_name = response.get('city', {}).get('title', 'Неизвестно')
+        # Определяем город
+        city_id = None
+        city_name = None
+        if 'city' in user:
+            city_id = user['city'].get('id')
+            city_name = user['city'].get('title')
         
         return {
-            'sex': response.get('sex'),
+            'id': user_id,
+            'sex': sex,
             'age': age,
             'city_id': city_id,
-            'city_name': city_name
+            'city_name': city_name,
+            'photo': user.get('photo_200', '')
         }
+        
     except Exception as e:
-        print(f"❌ Ошибка получения данных пользователя: {e}")
+        logger.error(f"❌ Ошибка получения данных пользователя: {e}")
         return None
 
 
-def search_candidates(user_info, user_id, count=20):
-    """
-    Ищет кандидатов через VK API users.search.
-    Исключает заблокированных, избранных и уже просмотренных.
-    """
+def search_candidates(user_info: dict, user_id: int, count: int = 20, settings: dict = None):
+    """Ищет кандидатов для пользователя с учётом настроек."""
     vk_user = get_vk_user_session().get_api()
     
-    sex = user_info.get('sex')
-    age = user_info.get('age')
-    city_id = user_info.get('city_id')
+    # Параметры поиска
+    sex = 1 if user_info['sex'] == 2 else 2  # Ищем противоположный пол
+    city_id = user_info['city_id']
     
-    target_sex = 2 if sex == 1 else 1
+    # Применяем настройки пользователя
+    age_min = 18
+    age_max = 99
+    max_distance = 50
     
-    params = {
-        'sex': target_sex,
-        'count': count,
-        'fields': 'photo_200,city,bdate'
-    }
-    
-    if age:
-        params['age_from'] = max(14, age - 3)
-        params['age_to'] = min(100, age + 3)
-    
-    if city_id:
-        params['city'] = city_id
+    if settings:
+        age_min = settings.get('age_min', 18)
+        age_max = settings.get('age_max', 99)
+        max_distance = settings.get('max_distance', 50)
     
     try:
-        response = vk_user.users.search(**params)
-        items = response.get('items', [])
+        # Поиск через VK API
+        response = vk_user.users.search(
+            sex=sex,
+            city=city_id,
+            age_from=age_min,
+            age_to=age_max,
+            has_photo=1,
+            count=count * 2,
+            fields='sex,city,bdate,photo_200'
+        )
         
-        # Получаем списки для фильтрации
-        from data_storage import get_favorites, get_blocked, get_views
-        favorites = get_favorites(user_id)
-        blocked = get_blocked(user_id)
-        views = get_views(user_id)
+        if 'items' not in response:
+            return []
         
-        # Фильтруем
-        filtered = []
-        for item in items:
+        candidates = []
+        
+        for item in response['items']:
             candidate_id = item['id']
             
-            # Пропускаем закрытые профили
-            if item.get('is_closed', False):
-                continue
-            
-            # Пропускаем себя
+            # Пропускаем самого пользователя
             if candidate_id == user_id:
                 continue
             
-            # Пропускаем заблокированных
-            if candidate_id in blocked:
+            # Проверяем пол
+            if item.get('sex') != sex:
                 continue
             
-            # Пропускаем избранных
-            if candidate_id in favorites:
-                continue
+            candidates.append(item)
             
-            # Пропускаем уже просмотренных
-            if candidate_id in views:
-                continue
-            
-            filtered.append(item)
+            if len(candidates) >= count:
+                break
         
-        print(f"✅ Найдено {len(filtered)} кандидатов из {count} (после фильтрации)")
-        return filtered
+        print(f"✅ Найдено {len(candidates)} кандидатов из {len(response.get('items', []))} (после фильтрации)")
+        return candidates
         
     except Exception as e:
         print(f"❌ Ошибка поиска кандидатов: {e}")
         return []
 
 
-def get_top_photos(user_id: int, count: int = 3) -> str:
-    """Получает топ-N фото пользователя по лайкам."""
-    from vk_client import get_vk_user_session
-    
-    vk_user = get_vk_user_session().get_api()
-    
-    try:
-        # Получаем все фото пользователя
-        photos = vk_user.photos.get(
-            owner_id=user_id,
-            album_id='profile',
-            extended=1,
-            count=100
-        )
-        
-        if not photos or 'items' not in photos:
-            return ""
-        
-        # Сортируем по лайкам
-        sorted_photos = sorted(
-            photos['items'],
-            key=lambda x: x.get('likes', {}).get('count', 0),
-            reverse=True
-        )
-        
-        # Берём топ-N фото
-        top_photos = sorted_photos[:count]
-        
-        # Формируем строку вложений
-        attachments = []
-        for photo in top_photos:
-            attachment = f"photo{photo['owner_id']}_{photo['id']}"
-            attachments.append(attachment)
-        
-        return ','.join(attachments)
-        
-    except Exception as e:
-        print(f"❌ Ошибка получения фото: {e}")
-        return ""
-
-
-def format_candidate_info(candidate):
-    """
-    Форматирует информацию о кандидате для сообщения.
-    """
+def format_candidate_info(candidate: dict) -> str:
+    """Форматирует информацию о кандидате."""
     first_name = candidate.get('first_name', '')
     last_name = candidate.get('last_name', '')
     candidate_id = candidate['id']
@@ -173,6 +134,39 @@ def format_candidate_info(candidate):
     if 'city' in candidate:
         city_text = f", {candidate['city'].get('title', '')}"
     
-    message = f"👤 {first_name} {last_name}{age_text}{city_text}\n🔗 {profile_link}"
+    return f" {first_name} {last_name}{age_text}{city_text}\n🔗 {profile_link}"
+
+
+def get_top_photos(user_id: int, count: int = 3) -> str:
+    """Получает топ-N фото пользователя по лайкам."""
+    vk_user = get_vk_user_session().get_api()
     
-    return message
+    try:
+        photos = vk_user.photos.get(
+            owner_id=user_id,
+            album_id='profile',
+            extended=1,
+            count=100
+        )
+        
+        if not photos or 'items' not in photos:
+            return ""
+        
+        sorted_photos = sorted(
+            photos['items'],
+            key=lambda x: x.get('likes', {}).get('count', 0),
+            reverse=True
+        )
+        
+        top_photos = sorted_photos[:count]
+        
+        attachments = []
+        for photo in top_photos:
+            attachment = f"photo{photo['owner_id']}_{photo['id']}"
+            attachments.append(attachment)
+        
+        return ','.join(attachments)
+        
+    except Exception as e:
+        print(f"❌ Ошибка получения фото: {e}")
+        return ""

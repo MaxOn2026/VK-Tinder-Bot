@@ -17,6 +17,10 @@ from handlers import (
     handle_show_partners,
     handle_main_menu,
     handle_statistics,
+    handle_settings,
+    handle_change_age,
+    handle_change_distance,
+    handle_text_message,
     send_message
 )
 
@@ -64,6 +68,16 @@ def handle_message(message):
     logger.info(f"📨 Сообщение от {user_id}: '{text}'")
     
     try:
+        # Сначала проверяем, не ожидает ли бот ввода от пользователя
+        from state_manager import state_manager
+        state = state_manager.get_state(user_id)
+        
+        if state and state.get('mode') in ['waiting_age', 'waiting_distance']:
+            logger.info(f"→ Обработка текстового ввода от {user_id}")
+            if handle_text_message(user_id, text):
+                return
+        
+        # Роутинг команд
         if text in ['начать', 'начать поиск', 'start']:
             logger.info(f"→ Вызван handle_start для {user_id}")
             handle_start(user_id)
@@ -97,6 +111,15 @@ def handle_message(message):
         elif text in ['статистика', '📊 статистика', 'stats']:
             logger.info(f"→ Вызван handle_statistics для {user_id}")
             handle_statistics(user_id)
+        elif text in ['настройки', '⚙️ настройки', 'settings']:
+            logger.info(f"→ Вызван handle_settings для {user_id}")
+            handle_settings(user_id)
+        elif text in ['изменить возраст', '📅 изменить возраст', 'возраст']:
+            logger.info(f"→ Вызван handle_change_age для {user_id}")
+            handle_change_age(user_id)
+        elif text in ['изменить расстояние', '📍 изменить расстояние', 'расстояние']:
+            logger.info(f"→ Вызван handle_change_distance для {user_id}")
+            handle_change_distance(user_id)
         elif text in ['главное меню', 'меню', '🏠', '🏠 главное меню', 'главное']:
             logger.info(f"→ Вызван handle_main_menu для {user_id}")
             handle_main_menu(user_id)

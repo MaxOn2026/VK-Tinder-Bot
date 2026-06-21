@@ -8,7 +8,8 @@ from keyboards import (
     create_partner_keyboard,
     create_favorites_keyboard,
     create_blocked_keyboard,
-    create_empty_list_keyboard
+    create_empty_list_keyboard,
+    create_settings_keyboard
 )
 from state_manager import state_manager
 from data_storage import (
@@ -22,7 +23,9 @@ from data_storage import (
     get_favorites,
     get_blocked,
     get_views,
-    get_matches
+    get_matches,
+    get_user_settings,
+    update_user_settings
 )
 
 # Логирование
@@ -85,7 +88,10 @@ def handle_search(user_id):
         logger.info(f"   Возраст: {user_info['age']}")
         logger.info(f"   Город: {user_info['city_name']} (ID: {user_info['city_id']})")
         
-        candidates = search_candidates(user_info, user_id, count=20)
+        # Получаем настройки пользователя
+        settings = get_user_settings(user_id)
+        
+        candidates = search_candidates(user_info, user_id, count=20, settings=settings)
         
         if not candidates:
             send_message(user_id, "😔 Не нашёл подходящих людей. Попробуйте позже.")
@@ -193,14 +199,21 @@ def handle_add_to_favorites(user_id):
         added = db_add_favorite(user_id, candidate_id)
         
         if added:
-            # Проверяем match
-            is_match = add_like(user_id, candidate_id)
+            # Проверяем match (новая функция возвращает кортеж)
+            result = add_like(user_id, candidate_id)
+            
+            # Проверяем тип результата
+            if isinstance(result, tuple):
+                is_match, matched_user_vk_id = result
+            else:
+                is_match = result
+                matched_user_vk_id = None
             
             if is_match:
                 add_match(user_id, candidate_id)
                 send_message(
                     user_id,
-                    f" У вас взаимный лайк с {candidate['first_name']}! Это match!\n"
+                    f"🎉 У вас взаимный лайк с {candidate['first_name']}! Это match!\n"
                     f"Теперь вы можете общаться друг с другом!",
                     keyboard=create_partner_keyboard(current_index, len(candidates))
                 )
@@ -503,6 +516,128 @@ def handle_statistics(user_id):
     )
     
     send_message(user_id, message, keyboard=create_main_menu_keyboard())
+
+
+def handle_settings(user_id):
+    """Обработка '⚙️ Настройки поиска'."""
+    settings = get_user_settings(user_id)
+    
+    if not settings:
+        send_message(user_id, "❌ Не удалось получить настройки")
+        return
+    
+    message = (
+        f"⚙️ Ваши настройки поиска:\n\n"
+        f"👤 Искать: {'женщин' if settings.get('looking_for') == 1 else 'мужчин' if settings.get('looking_for') == 2 else 'всех'}\n"
+        f"📅 Возраст: {settings.get('age_min', 18)} - {settings.get('age_max', 99)} лет\n"
+        f"📍 Макс. расстояние: {settings.get('max_distance', 50)} км\n\n"
+        f"Выберите что изменить:"
+    )
+    
+    send_message(user_id, message, keyboard=create_settings_keyboard())
+
+
+def handle_change_age(user_id):
+    """Обработка 'Изменить возраст'."""
+    state = state_manager.get_state(user_id)
+    
+    state_manager.set_state(user_id, {
+        'mode': 'waiting_age',
+        'current_index': 0
+    })
+    
+    send_message(
+        user_id,
+        "📅 Введите желаемый диапазон возраста в формате:\n"
+        "`минимум-максимум`\n\n"
+        "Пример: `20-30`",
+        keyboard=None
+    )
+
+
+def handle_change_distance(user_id):
+    """Обработка 'Изменить расстояние'."""
+    state = state_manager.get_state(user_id)
+    
+    state_manager.set_state(user_id, {
+        'mode': 'waiting_distance',
+        'current_index': 0
+    })
+    
+    send_message(
+        user_id,
+        "📍 Введите максимальное расстояние в км:\n\n"
+        "Пример: `100`",
+        keyboard=None
+    )
+
+
+def handle_text_message(user_id, text):
+    """Обработка текстовых сообщений для настроек."""
+    state = state_manager.get_state(user_id)
+    
+    if not state:
+        return False
+    
+    mode = state.get('mode')
+    
+    if mode == 'waiting_age':
+        try:
+            parts = text.split('-')
+            if len(parts) == 2:
+                age_min = int(parts[0].strip())
+                age_max = int(parts[1].strip())
+                
+                if 14 <= age_min <= age_max <= 99:
+                    update_user_settings(user_id, {
+                        'age_min': age_min,
+                        'age_max': age_max
+                    })
+                    
+                    send_message(
+                        user_id,
+                        f"✅ Возраст изменён: {age_min} - {age_max} лет",
+                        keyboard=create_main_menu_keyboard()
+                    )
+                    
+                    state_manager.set_state(user_id, {
+                        'mode': 'main_menu',
+                        'current_index': 0
+                    })
+                    return True
+                else:
+                    send_message(user_id, "❌ Возраст должен быть от 14 до 99 лет")
+            else:
+                send_message(user_id, "❌ Неверный формат. Используйте: `минимум-максимум`")
+        except ValueError:
+            send_message(user_id, "❌ Введите числа")
+    
+    elif mode == 'waiting_distance':
+        try:
+            distance = int(text.strip())
+            
+            if 1 <= distance <= 1000:
+                update_user_settings(user_id, {
+                    'max_distance': distance
+                })
+                
+                send_message(
+                    user_id,
+                    f"✅ Расстояние изменён: {distance} км",
+                    keyboard=create_main_menu_keyboard()
+                )
+                
+                state_manager.set_state(user_id, {
+                    'mode': 'main_menu',
+                    'current_index': 0
+                })
+                return True
+            else:
+                send_message(user_id, "❌ Расстояние должно быть от 1 до 1000 км")
+        except ValueError:
+            send_message(user_id, "❌ Введите число")
+    
+    return False
 
 
 def handle_unknown(user_id):
