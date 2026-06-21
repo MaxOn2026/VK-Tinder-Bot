@@ -109,32 +109,37 @@ def search_candidates(user_info, user_id, count=20):
         return []
 
 
-def get_top_photos(user_id, count=3):
-    """
-    Получает топ-3 фото пользователя по лайкам.
-    """
+def get_top_photos(user_id: int, count: int = 3) -> str:
+    """Получает топ-N фото пользователя по лайкам."""
+    from vk_client import get_vk_user_session
+    
     vk_user = get_vk_user_session().get_api()
     
     try:
-        response = vk_user.photos.get(
+        # Получаем все фото пользователя
+        photos = vk_user.photos.get(
             owner_id=user_id,
             album_id='profile',
             extended=1,
-            count=50
+            count=100
         )
         
-        photos = response.get('items', [])
+        if not photos or 'items' not in photos:
+            return ""
         
+        # Сортируем по лайкам
         sorted_photos = sorted(
-            photos,
+            photos['items'],
             key=lambda x: x.get('likes', {}).get('count', 0),
             reverse=True
         )
         
-        top = sorted_photos[:count]
+        # Берём топ-N фото
+        top_photos = sorted_photos[:count]
         
+        # Формируем строку вложений
         attachments = []
-        for photo in top:
+        for photo in top_photos:
             attachment = f"photo{photo['owner_id']}_{photo['id']}"
             attachments.append(attachment)
         
@@ -142,7 +147,7 @@ def get_top_photos(user_id, count=3):
         
     except Exception as e:
         print(f"❌ Ошибка получения фото: {e}")
-        return None
+        return ""
 
 
 def format_candidate_info(candidate):

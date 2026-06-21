@@ -1,7 +1,6 @@
-"""Модели интересов и связей многие-ко-многим."""
-from typing import List, TYPE_CHECKING, Optional
-from sqlalchemy import Integer
-from sqlalchemy import String, Table, Column, ForeignKey, Index
+"""Модель интересов пользователей."""
+from typing import Optional, List, TYPE_CHECKING
+from sqlalchemy import String, Integer, Table, Column, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database.base import Base
 
@@ -10,60 +9,38 @@ if TYPE_CHECKING:
     from database.models.profile import VKProfile
 
 
-# Промежуточная таблица: пользователи бота ↔ интересы
+# Промежуточная таблица: пользователь <-> интерес
 user_interests = Table(
     "user_interests",
     Base.metadata,
-    Column("user_id", ForeignKey("bot_users.id", ondelete="CASCADE"), primary_key=True),
-    Column("interest_id", ForeignKey("interests.id", ondelete="CASCADE"), primary_key=True),
-    extend_existing=True
+    Column("user_id", Integer, ForeignKey("bot_users.id", ondelete="CASCADE"), primary_key=True),
+    Column("interest_id", Integer, ForeignKey("interests.id", ondelete="CASCADE"), primary_key=True),
 )
 
-# Промежуточная таблица: анкеты ВК ↔ интересы
+
+# Промежуточная таблица: профиль ВК <-> интерес
 profile_interests = Table(
     "profile_interests",
     Base.metadata,
-    Column("profile_id", ForeignKey("vk_profiles.id", ondelete="CASCADE"), primary_key=True),
-    Column("interest_id", ForeignKey("interests.id", ondelete="CASCADE"), primary_key=True),
-    extend_existing=True
+    Column("profile_id", Integer, ForeignKey("vk_profiles.id", ondelete="CASCADE"), primary_key=True),
+    Column("interest_id", Integer, ForeignKey("interests.id", ondelete="CASCADE"), primary_key=True),
 )
 
 
 class Interest(Base):
-    """Модель интереса/хобби (справочник для сопоставления пользователей и профилей).
-
-    Атрибуты:
-        title: Название интереса (уникальное).
-        category: Категория (music, sport, books, movies и т.д.).
-        vk_external_id: ID группы/страницы ВКонтакте, связанной с интересом (опционально).
-
-    Связи:
-        users: Список связанных объектов BotUser (многие-ко-многим).
-        profiles: Список связанных объектов VKProfile (многие-ко-многим).
-    """
+    """Модель интереса (хобби, увлечение)."""
 
     __tablename__ = "interests"
 
     title: Mapped[str] = mapped_column(
-        String(100), 
-        unique=True, 
-        nullable=False, 
+        String(100),
+        unique=True,
+        nullable=False,
         index=True,
-        comment="Название интереса (например, 'рок', 'футбол', 'python')"
-    )
-    category: Mapped[Optional[str]] = mapped_column(
-        String(50), 
-        nullable=True, 
-        index=True,
-        comment="Категория: music, sport, books, movies и т.д."
-    )
-    vk_external_id: Mapped[Optional[int]] = mapped_column(
-        Integer, 
-        nullable=True,
-        comment="ID группы/страницы ВКонтакте, связанной с интересом"
+        comment="Название интереса"
     )
 
-    # Связи
+    # Many-to-many с пользователями
     users: Mapped[List["BotUser"]] = relationship(
         "BotUser",
         secondary=user_interests,
@@ -71,6 +48,7 @@ class Interest(Base):
         lazy="selectin"
     )
 
+    # Many-to-many с профилями ВК
     profiles: Mapped[List["VKProfile"]] = relationship(
         "VKProfile",
         secondary=profile_interests,
@@ -79,9 +57,8 @@ class Interest(Base):
     )
 
     __table_args__ = (
-        Index("idx_interest_title_trigram", "title", postgresql_using="gin", 
-            postgresql_ops={"title": "gin_trgm_ops"}),
+        Index("idx_interest_title_trigram", "title", postgresql_using="gin", postgresql_ops={"title": "gin_trgm_ops"}),
     )
 
     def __repr__(self) -> str:
-        return f"<Interest(id={self.id}, title={self.title})>"
+        return f"<Interest(id={self.id}, title='{self.title}')>"

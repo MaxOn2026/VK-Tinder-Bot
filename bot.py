@@ -1,84 +1,112 @@
-"""Модуль главного цикла бота."""
+"""Основной модуль бота."""
+import logging
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
-from vk_client import get_vk_session, get_group_id
+from vk_api.utils import get_random_id
+from config import Config
+from database.db_manager import db_manager
 from handlers import (
     handle_start,
-    handle_search,
     handle_next,
     handle_previous,
     handle_add_to_favorites,
     handle_add_to_blocked,
-    handle_main_menu,
-    handle_show_partners,
     handle_show_favorites,
     handle_show_blocked,
     handle_remove_from_favorites,
     handle_remove_from_blocked,
-    handle_unknown
+    handle_show_partners,
+    handle_main_menu,
+    handle_statistics,
+    send_message
 )
 
+# Инициализация базы данных
+db_manager.initialize()
 
-# Словарь команд
-COMMANDS = {
-    # Приветствие
-    ('начать', 'привет', '/start', 'hi', 'hello'): handle_start,
-    
-    # Поиск
-    ('начать поиск',): handle_search,
-    
-    # Навигация
-    ('следующий >>', 'следующий'): handle_next,
-    ('<< предыдущий', 'предыдущий'): handle_previous,
-    
-    # Действия с партнёрами
-    ('❤️ в избранное', 'в избранное'): handle_add_to_favorites,
-    ('🚫 в чёрный список', 'в чёрный список'): handle_add_to_blocked,
-    
-    # Меню
-    ('🏠 главное меню', 'главное меню'): handle_main_menu,
-    ('список партнёров',): handle_show_partners,
-    ('список избранных',): handle_show_favorites,
-    ('чёрный список',): handle_show_blocked,
-    
-    # Удаление
-    ('❌ удалить из избранного',): handle_remove_from_favorites,
-    ('✅ удалить из чёрного списка',): handle_remove_from_blocked,
-}
+# Логирование
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 def run_bot():
     """Запускает бота."""
-    session = get_vk_session()
-    vk = session.get_api()
-    group_id = get_group_id(session)
-    
-    longpoll = VkBotLongPoll(session, group_id=group_id)
-    
-    print("🤖 Бот запущен! Жду сообщение...")
-    print("💡 Напишите боту что-нибудь в ВК\n")
-    
-    for event in longpoll.listen():
-        if event.type == VkBotEventType.MESSAGE_NEW:
-            try:
-                user_id = event.obj.message['from_id']
-                text = event.obj.message['text'].lower().strip()
+    try:
+        vk_session = get_vk_session()
+        longpoll = VkBotLongPoll(vk_session, int(Config.GROUP_ID))
+        
+        logger.info("🤖 Бот запущен! Жду сообщение...")
+        logger.info("💡 Напишите боту что-нибудь в ВК")
+        
+        for event in longpoll.listen():
+            if event.type == VkBotEventType.MESSAGE_NEW:
+                message = event.obj.message
+                handle_message(message)
                 
-                print(f"📨 Сообщение от {user_id}: '{text}'")
-                
-                # Ищем подходящую команду
-                handler = None
-                for keywords, func in COMMANDS.items():
-                    if text in keywords:
-                        handler = func
-                        break
-                
-                # Выполняем обработчик или unknown
-                if handler:
-                    handler(user_id)
-                else:
-                    handle_unknown(user_id)
-                    
-            except Exception as e:
-                print(f"❌ Ошибка: {e}")
-                import traceback
-                traceback.print_exc()
+    except Exception as e:
+        logger.error(f"❌ Ошибка бота: {e}")
+        raise
+
+
+def get_vk_session():
+    """Получает сессию VK API."""
+    from vk_client import get_vk_session as _get_session
+    return _get_session()
+
+
+def handle_message(message):
+    """Обрабатывает входящее сообщение."""
+    user_id = message['from_id']
+    text = message['text'].lower().strip()
+    
+    logger.info(f"📨 Сообщение от {user_id}: '{text}'")
+    
+    try:
+        if text in ['начать', 'начать поиск', 'start']:
+            logger.info(f"→ Вызван handle_start для {user_id}")
+            handle_start(user_id)
+        elif text in ['следующий', 'далее', '>>', 'следующий >>']:
+            logger.info(f"→ Вызван handle_next для {user_id}")
+            handle_next(user_id)
+        elif text in ['предыдущий', '<<', '<< предыдущий']:
+            logger.info(f"→ Вызван handle_previous для {user_id}")
+            handle_previous(user_id)
+        elif text in ['в избранное', '❤️', 'лайк', '❤️ в избранное']:
+            logger.info(f"→ Вызван handle_add_to_favorites для {user_id}")
+            handle_add_to_favorites(user_id)
+        elif text in ['в чёрный список', '🚫', 'дизлайк', '🚫 в чёрный список']:
+            logger.info(f"→ Вызван handle_add_to_blocked для {user_id}")
+            handle_add_to_blocked(user_id)
+        elif text in ['список избранных', 'избранное', 'favorites']:
+            logger.info(f"→ Вызван handle_show_favorites для {user_id}")
+            handle_show_favorites(user_id)
+        elif text in ['чёрный список', 'blocked']:
+            logger.info(f"→ Вызван handle_show_blocked для {user_id}")
+            handle_show_blocked(user_id)
+        elif text in ['удалить из избранного', '❌', '❌ удалить из избранного']:
+            logger.info(f"→ Вызван handle_remove_from_favorites для {user_id}")
+            handle_remove_from_favorites(user_id)
+        elif text in ['удалить из чёрного списка', '✅', '✅ удалить из чёрного списка']:
+            logger.info(f"→ Вызван handle_remove_from_blocked для {user_id}")
+            handle_remove_from_blocked(user_id)
+        elif text in ['список партнёров', 'партнёры', 'matches']:
+            logger.info(f"→ Вызван handle_show_partners для {user_id}")
+            handle_show_partners(user_id)
+        elif text in ['статистика', '📊 статистика', 'stats']:
+            logger.info(f"→ Вызван handle_statistics для {user_id}")
+            handle_statistics(user_id)
+        elif text in ['главное меню', 'меню', '🏠', '🏠 главное меню', 'главное']:
+            logger.info(f"→ Вызван handle_main_menu для {user_id}")
+            handle_main_menu(user_id)
+        else:
+            logger.warning(f"⚠️ Неизвестная команда: '{text}'")
+            send_message(user_id, "❓ Неизвестная команда. Используйте кнопки или напишите 'начать'")
+    except Exception as e:
+        logger.error(f"❌ Ошибка обработки команды '{text}': {e}", exc_info=True)
+        send_message(user_id, f"❌ Произошла ошибка: {e}")
+
+
+if __name__ == '__main__':
+    run_bot()

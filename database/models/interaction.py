@@ -10,19 +10,7 @@ if TYPE_CHECKING:
 
 
 class UserInteraction(Base):
-    """Модель действия пользователя над анкетой ВКонтакте.
-
-    Действия включают: просмотр, лайк, дизлайк, блокировку.
-
-    Атрибуты:
-        user_id: ID пользователя, выполнившего действие.
-        profile_id: ID целевой анкеты.
-        action: Тип действия (view, like, dislike, block).
-
-    Связи:
-        user: Ссылка на BotUser, выполнившего действие.
-        profile: Ссылка на VKProfile, над которым выполнено действие.
-    """
+    """Модель действия пользователя над анкетой ВКонтакте."""
 
     __tablename__ = "user_interactions"
 
@@ -37,18 +25,17 @@ class UserInteraction(Base):
         index=True
     )
     action: Mapped[str] = mapped_column(
-        String(20), 
+        String(20),
         nullable=False,
         comment="view/like/dislike/block"
     )
 
-    # Связи
     user: Mapped["BotUser"] = relationship("BotUser", back_populates="interactions")
     profile: Mapped["VKProfile"] = relationship("VKProfile")
 
     __table_args__ = (
-        # Уникальность пары (user, profile) — одно действие на пару
-        Index("idx_interaction_user_profile", "user_id", "profile_id", unique=True),
+        # Уникальность тройки (user, profile, action)
+        Index("idx_interaction_user_profile_action", "user_id", "profile_id", "action", unique=True),
         Index("idx_interaction_user_action", "user_id", "action"),
         Index("idx_interaction_profile_action", "profile_id", "action"),
         CheckConstraint(
@@ -62,13 +49,7 @@ class UserInteraction(Base):
 
 
 class MutualLike(Base):
-    """Модель взаимного лайка (мэтча) между пользователем и анкетой.
-
-    Атрибуты:
-        user_id: ID пользователя, поставившего лайк.
-        profile_id: ID анкеты, получившей лайк.
-        is_notified: Был ли пользователь уведомлён о мэтче.
-    """
+    """Модель взаимного лайка."""
 
     __tablename__ = "mutual_likes"
 
