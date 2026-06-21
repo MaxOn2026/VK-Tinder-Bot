@@ -9,10 +9,11 @@ CREATE TABLE users(
 	id SERIAL PRIMARY KEY,
 	name VARCHAR(256) NOT NULL,
 	surname VARCHAR(256) NOT NULL,
-	birthdate DATE,
+	birth_year SMALLINT NOT NULL,
 	location_id INT REFERENCES locations(id),
 	vk_id BIGINT UNIQUE NOT NULL,
 	created_at TIMESTAMP DEFAULT NOW(),
+    last_active TIMESTAMP DEFAULT NOW(),
 	gender SMALLINT,
 	looking_for SMALLINT,
 	age_min SMALLINT DEFAULT 18,
@@ -26,31 +27,20 @@ CREATE TABLE interests(
 );
 
 CREATE TABLE users_interests(
+	id SERIAL PRIMARY KEY,
 	user_id INT REFERENCES users(id),
 	interest_id INT REFERENCES interests(id),
 	PRIMARY KEY(user_id, interest_id)
-);
-
-CREATE TABLE views_history(
-	id SERIAL PRIMARY KEY,
-	user_id INT REFERENCES users(id),
-	viewed_user_id INT REFERENCES users(id)
-);
-
-CREATE TABLE blocked_users(
-	id SERIAL PRIMARY KEY,
-	user_id INT REFERENCES users(id),
-	blocked_user_id INT REFERENCES users(id)
 );
 
 CREATE TABLE likes(
 	id SERIAL PRIMARY KEY,
 	user_id INT REFERENCES users(id),
 	liked_user_id INT REFERENCES users(id),
-	like_or_dislike BOOLEAN NOT NULL,
+	action VARCHAR(20) DEFAULT 'view', CHECK(action IN ('like', 'dislike', 'block', 'view'))
 	created_at TIMESTAMP DEFAULT NOW(),
 	UNIQUE(user_id, liked_user_id)
-)
+);
 
 CREATE TABLE matches(
 	id SERIAL PRIMARY KEY,
@@ -60,3 +50,16 @@ CREATE TABLE matches(
 	UNIQUE(user_id_1, user_id_2),
 	CHECK(user_id_1 < user_id_2)
 )
+
+-- Поиск по возрасту
+CREATE INDEX idx_users_birthdate ON users(birthdate);
+
+-- Поиск по полу и предпочтениям
+CREATE INDEX idx_users_gender_looking ON users(gender, looking_for);
+
+-- Геопоиск (потребуется PostGIS или отдельный индекс)
+CREATE INDEX idx_locations_coords ON locations(longitude, latitude);
+
+-- Частые JOIN
+CREATE INDEX idx_users_location ON users(location_id);
+CREATE INDEX idx_users_interests_user ON users_interests(user_id);
