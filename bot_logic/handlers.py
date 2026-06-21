@@ -13,6 +13,7 @@
     ```
 """
 
+from datetime import datetime
 import random
 from typing import Optional
 
@@ -378,7 +379,6 @@ def handle_add_to_favorites(user_id: int) -> None:
             is_match = add_like_and_check_match(user_id, candidate_id)
 
             if is_match:
-                add_match(user_id, candidate_id)
                 send_message(
                     user_id,
                     f"🎉 У вас взаимный лайк с {candidate['first_name']}! Это match!",
@@ -611,10 +611,10 @@ def show_current_favorite(user_id: int) -> None:
         try:
             parts = favorite["bdate"].split(".")
             if len(parts) == 3:
-                age = 2026 - int(parts[2])
+                age = datetime.now().year - int(parts[2])
                 age_text = f", {age} лет"
-        except:
-            pass
+        except Exception as e:
+            print(f'Возникла ошибка при выполнении: {e}')
 
     city_text = ""
     if "city" in favorite:
@@ -725,8 +725,8 @@ def show_current_blocked(user_id: int) -> None:
             if len(parts) == 3:
                 age = 2026 - int(parts[2])
                 age_text = f", {age} лет"
-        except:
-            pass
+        except Exception as e:
+            print(f'Возникла ошибка при выполнении: {e}')
 
     city_text = ""
     if "city" in blocked_user:
@@ -774,13 +774,14 @@ def handle_remove_from_favorites(user_id: int) -> None:
         # Удаляем из БД
         removed = remove_interaction(user_id, candidate_id, "like")
 
-        send_message(
-            user_id,
-            f"❌ {favorite['first_name']} удалена из избранного",
-            keyboard=create_main_menu_keyboard(),
-        )
+        if removed:
+            send_message(
+                user_id,
+                f"❌ {favorite['first_name']} удалена из избранного",
+                keyboard=create_main_menu_keyboard(),
+            )
     else:
-        send_message(user_id, f"⚠️ Нечего удалять", keyboard=create_main_menu_keyboard())
+        send_message(user_id, "⚠️ Нечего удалять", keyboard=create_main_menu_keyboard())
 
 
 def handle_remove_from_blocked(user_id: int) -> None:
@@ -818,13 +819,14 @@ def handle_remove_from_blocked(user_id: int) -> None:
         # Удаляем из БД
         removed = remove_interaction(user_id, candidate_id, "block")
 
-        send_message(
-            user_id,
-            f"✅ {blocked_user['first_name']} удалена из чёрного списка",
-            keyboard=create_main_menu_keyboard(),
-        )
+        if removed:
+            send_message(
+                user_id,
+                f"✅ {blocked_user['first_name']} удалена из чёрного списка",
+                keyboard=create_main_menu_keyboard(),
+            )
     else:
-        send_message(user_id, f"⚠️ Нечего удалять", keyboard=create_main_menu_keyboard())
+        send_message(user_id, "⚠️ Нечего удалять", keyboard=create_main_menu_keyboard())
 
 
 def handle_show_matches(user_id: int) -> None:
@@ -921,8 +923,8 @@ def show_current_match(user_id: int) -> None:
             if len(parts) == 3:
                 age = 2026 - int(parts[2])
                 age_text = f", {age} лет"
-        except:
-            pass
+        except Exception as e:
+            print(f"Возникла ошибка при выполнении: {e}")
 
     city_text = ""
     if "city" in match_user:

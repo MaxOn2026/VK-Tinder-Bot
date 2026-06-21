@@ -72,6 +72,45 @@ class BotUser(Base):
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False, index=True)
     last_active: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
+    # Состояние пользователя (временные данные для навигации)
+    state_mode: Mapped[str] = mapped_column(
+        String(50),
+        default="main_menu",
+        nullable=False,
+        comment="Текущий режим: partners, favorites, blocked, matches, main_menu"
+    )
+    state_current_index: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Текущий индекс в списке"
+    )
+    state_candidates: Mapped[Optional[str]] = mapped_column(
+        String,
+        nullable=True,
+        comment="JSON-список кандидатов для поиска"
+    )
+    state_favorites_list: Mapped[Optional[str]] = mapped_column(
+        String,
+        nullable=True,
+        comment="JSON-список избранных пользователей"
+    )
+    state_blocked_list: Mapped[Optional[str]] = mapped_column(
+        String,
+        nullable=True,
+        comment="JSON-список заблокированных пользователей"
+    )
+    state_matches_list: Mapped[Optional[str]] = mapped_column(
+        String,
+        nullable=True,
+        comment="JSON-список матчей"
+    )
+    state_user_info: Mapped[Optional[str]] = mapped_column(
+        String,
+        nullable=True,
+        comment="JSON-данные о пользователе для поиска"
+    )
+
     # Связи (реляционная магия)
     # Один пользователь → много взаимодействий
     interactions: Mapped[List["UserInteraction"]] = relationship(

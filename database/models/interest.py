@@ -78,10 +78,5 @@ class Interest(Base):
         lazy="selectin"
     )
 
-    __table_args__ = (
-        Index("idx_interest_title_trigram", "title", postgresql_using="gin", 
-            postgresql_ops={"title": "gin_trgm_ops"}),
-    )
-
     def __repr__(self) -> str:
         return f"<Interest(id={self.id}, title={self.title})>"

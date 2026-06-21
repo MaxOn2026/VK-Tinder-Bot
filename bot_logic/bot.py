@@ -87,8 +87,9 @@ def _extract_message(event) -> dict | None:
 def _find_handler(text: str) -> Callable | None:
     """Находит обработчик команды по тексту сообщения."""
     for keywords, func in COMMANDS.items():
-        if text in keywords:
-            return func
+        for keyword in keywords:
+            if text == keyword:
+                return func
     return None
 
 

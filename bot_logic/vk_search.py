@@ -1,5 +1,7 @@
 """Модуль для поиска людей через VK API."""
 
+from datetime import datetime
+
 from database.repositories.interaction_repo import get_user_interactions
 from database.repositories.profile_repo import save_candidate
 
@@ -21,9 +23,9 @@ def get_user_info(user_id):
                 parts = response["bdate"].split(".")
                 if len(parts) == 3:
                     birth_year = int(parts[2])
-                    age = 2026 - birth_year
-            except:
-                pass
+                    age = datetime.now().year - birth_year
+            except Exception as e:
+                print(f'Произошла ошибка при выполнении: {e}')
 
         city_id = response.get("city", {}).get("id")
         city_name = response.get("city", {}).get("title", "Неизвестно")
@@ -158,8 +160,8 @@ def format_candidate_info(candidate):
             if len(parts) == 3:
                 age = 2026 - int(parts[2])
                 age_text = f", {age} лет"
-        except:
-            pass
+        except Exception as e:
+            print(f"Возникла ошибка при выполнении: {e}")
 
     city_text = ""
     if "city" in candidate:
