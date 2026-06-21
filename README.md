@@ -1,357 +1,752 @@
-# VK-Tinder-Bot
+# 🎯 VK Tinder Bot
 
-## Описание проекта
+**Умный бот для знакомств ВКонтакте с использованием PostgreSQL и SQLAlchemy**
 
-**VK-Tinder-Bot** — это программный бот для социальной сети ВКонтакте, который помогает пользователям находить потенциальных партнеров через автоматизированный поиск по заданным критериям. Бот анализирует профили пользователей ВКонтакте, находит подходящие варианты на основе возраста, пола и города, а также предоставляет возможность взаимодействия: добавление в избранные, просмотр фото, чат с мэтчами.
-
-Проект реализован на Python с использованием SQLAlchemy ORM для работы с базой данных PostgreSQL и API ВКонтакте для получения информации о пользователях.
-
----
-
-## Основные возможности
-
-- **Поиск потенциальных партнеров** по критериям (возраст, пол, город)
-- **Просмотр фотографий** профилей с информацией о популярности (по лайкам)
-- **Интерактивный диалог** в формате чата ВКонтакте
-- **Добавление в избранные** с сохранением в базу данных
-- **Чёрный список** — блокировка нежелательных профилей
-- **Система взаимных симпатий** (мэтчи) с уведомлениями
-- **Чат между мэтчами** через базу данных
+[![Python](https://img.shields.io/badge/Python-3.14-blue.svg)](https://python.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-blue.svg)](https://postgresql.org)
+[![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-green.svg)](https://sqlalchemy.org)
+[![VK API](https://img.shields.io/badge/VK%20API-LongPoll-orange.svg)](https://vk.com/dev)
 
 ---
 
-## Архитектура проекта
+## 📖 Оглавление
 
-```
-VK-Tinder-Bot/
-├── bot.py                 # Основной файл запуска бота
-├── config.py              # Конфигурация и переменные окружения
-├── main.py                # Точка входа в приложение
-├── handlers.py            # Обработчики сообщений и событий
-├── keyboards.py           # Клавиатуры для чата ВКонтакте
-├── vk_client.py           # Клиент для работы с API ВКонтакте
-├── vk_search.py           # Логика поиска пользователей ВК
-├── user_data.json         # Временное хранение данных пользователей
-├── requirements.txt       # Зависимости проекта
-├── .env                   # Переменные окружения (не включён в git)
-├── database/              # Модуль работы с базой данных
-│   ├── __init__.py        # Публичный API модуля
-│   ├── base.py            # Базовый класс моделей SQLAlchemy
-│   ├── db_manager.py      # Менеджер подключения к БД
-│   ├── models/            # Модели данных
-│   │   ├── user.py        # Модель пользователя бота
-│   │   ├── profile.py     # Модель профиля ВКонтакте
-│   │   ├── interest.py    # Модель интересов и хобби
-│   │   ├── interaction.py # Взаимодействия пользователей
-│   │   ├── match.py       # Мэтчи и сообщения
-│   │   └── location.py    # Географическая информация
-│   ├── scripts/           # Скрипты настройки БД
-│   │   └── db_setup.sql   # SQL-схема базы данных
-│   └── README.md          # Документация модуля database
-└── README.md              # Этот файл
-```
+- [Описание](#-описание)
+- [Возможности](#-возможности)
+- [Технологический стек](#-технологический-стек)
+- [Требования](#-требования)
+- [Установка](#-установка)
+- [Запуск](#-запуск)
+- [Использование](#-использование)
+- [Структура проекта](#-структура-проекта)
+- [Архитектура базы данных](#-архитектура-базы-данных)
+- [Модуль database](#-модуль-database)
+- [API DatabaseManager](#-api-databasemanager)
+- [Модели данных](#-модели-данных)
+- [Примеры использования](#-примеры-использования)
+- [Конфигурация](#-конфигурация)
+- [Разработка](#-разработка)
+- [Известные проблемы](#-известные-проблемы)
+- [Планы развития](#-планы-развития)
+- [Лицензия](#-лицензия)
+- [Автор](#-автор)
 
 ---
 
-## Установка и настройка
+## 📖 Описание
 
-### Требования
+VK Tinder Bot — это полнофункциональный бот для знакомств, который работает через ВКонтакте. Бот находит подходящих кандидатов на основе предпочтений пользователя, позволяет лайкать, блокировать и просматривать анкеты. Все данные хранятся в надёжной PostgreSQL базе данных.
 
-- Python 3.8+
-- PostgreSQL 12+
-- Аккаунт ВКонтакте с API-токеном
+### 🎯 Основные возможности
 
-### Шаг 1: Клонирование репозитория
+✅ **Умный поиск** — находит кандидатов по возрасту, полу, городу  
+✅ **Система лайков** — добавление в избранное и чёрный список  
+✅ **Топ-3 фото** — показывает лучшие фото кандидатов по лайкам  
+✅ **Навигация** — кнопки "Следующий", "Предыдущий"  
+✅ **Списки** — просмотр избранных и заблокированных  
+✅ **Управление** — удаление из списков  
+✅ **PostgreSQL** — надёжное хранение данных  
+✅ **SQLAlchemy ORM** — профессиональная работа с БД  
+✅ **Потокобезопасность** — scoped_session для многопоточности  
+✅ **Пул соединений** — эффективное управление подключениями  
+
+---
+
+## 🛠 Технологический стек
+
+### Backend
+- **Python 3.14** — основной язык
+- **SQLAlchemy 2.0** — ORM для работы с БД
+- **PostgreSQL 18** — реляционная база данных
+- **psycopg2-binary** — драйвер PostgreSQL
+- **vk_api** — работа с VK API (LongPoll)
+- **python-dotenv** — управление переменными окружения
+- **requests** — HTTP-запросы
+
+### Архитектура
+- **LongPoll** — мгновенная обработка сообщений
+- **Модульная структура** — разделён на компоненты
+- **ORM модели** — типизированные модели данных с аннотациями
+- **Пул соединений** — QueuePool (10 основных + 20 дополнительных)
+- **Scoped sessions** — потокобезопасные сессии
+
+### База данных
+- **PostgreSQL 18** с расширением `pg_trgm` для поиска по триграммам
+- **GIN индексы** для быстрого поиска
+- **Уникальные ограничения** для целостности данных
+- **Внешние ключи** с CASCADE для связанных данных
+
+---
+
+## 📋 Требования
+
+- **Python 3.14+**
+- **PostgreSQL 18+**
+- **VK API токены** (групповой и пользовательский)
+- **ID группы ВКонтакте**
+
+---
+
+## 🚀 Установка
+
+### 1. Клонируйте репозиторий
 
 ```bash
-git clone https://github.com/ваш-аккаунт/VK-Tinder-Bot.git
+git clone https://github.com/ваш-username/VK-Tinder-Bot.git
 cd VK-Tinder-Bot
 ```
 
-### Шаг 2: Создание виртуального окружения
+### 2. Создайте виртуальное окружение
 
-```bash
-python -m venv .venv
-source .venv/bin/activate  # или .venv\Scripts\activate на Windows
+**Windows:**
+```powershell
+python -m venv venv
+venv\Scripts\activate
 ```
 
-### Шаг 3: Установка зависимостей
+**Linux/Mac:**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 3. Установите зависимости
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### Шаг 4: Настройка переменных окружения
+### 4. Настройте PostgreSQL
 
-Создайте файл `.env` в корне проекта и заполните его:
+Подключитесь к PostgreSQL и выполните:
 
-```env
-# Настройки PostgreSQL
-HOST=localhost
-PORT=5432
-DATABASE=vk_tinder
-USER=postgres
-PASSWORD=ваш_пароль
+```sql
+-- Создайте базу данных
+CREATE DATABASE vkinder_db;
 
-# Настройки ВКонтакте
-VK_TOKEN=ваш_токен_доступа
-VK_GROUP_ID=ID_вашей_группы
+-- Подключитесь к базе
+\c vkinder_db;
 
-# Дополнительные настройки (опционально)
-DB_ECHO=false
-DB_ECHO_POOL=false
+-- Установите расширение для поиска по триграммам
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 ```
 
-#### Получение токена ВКонтакте
+### 5. Настройте переменные окружения
 
-1. Перейдите на [страницу создания API-токена](https://vk.com/edit_app?act=create)
-2. Создайте новое приложение типа «Сайт»
-3. Скопируйте токен доступа с правами: `messages`, `users`, `photos`
+Создайте файл `.env` в корне проекта:
 
-### Шаг 5: Создание базы данных
+```env
+# VK API токены
+GROUP_TOKEN=vk1.a.ВАШ_ТОКЕН_ГРУППЫ
+USER_TOKEN=vk1.a.ВАШ_ПОЛЬЗОВАТЕЛЬСКИЙ_ТОКЕН
+GROUP_ID=ID_ВАШЕЙ_ГРУППЫ_БЕЗ_МИНУСА
 
-База данных будет создана автоматически при первом запуске, если вызвать метод `create_tables()` в `main.py`.
+# PostgreSQL
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=vkinder_db
+DB_USER=postgres
+DB_PASSWORD=ваш_пароль
+```
+
+**Как получить токены:**
+
+- **GROUP_TOKEN**: Создайте группу ВК → Управление → Работа с API → Создать ключ
+- **USER_TOKEN**: Перейдите на [vkhost.github.io](https://vkhost.github.io/), выберите Kate Mobile, авторизуйтесь и скопируйте токен из URL
+- **GROUP_ID**: Откройте группу, ID — это число после `club` в URL (например, `club123456` → `123456`)
+
+### 6. Инициализируйте базу данных
+
+```bash
+python init_db.py
+```
+
+Должно появиться:
+```
+🔧 Инициализация базы данных...
+✅ Подключение к БД установлено
+✅ Таблицы созданы
+✅ База данных готова к работе!
+```
 
 ---
 
-## Использование
-
-### Запуск бота
+## ▶️ Запуск
 
 ```bash
 python main.py
 ```
 
-### Основные команды в чате
+Бот запустится и начнёт слушать сообщения через LongPoll.
+
+---
+
+## 💬 Использование
+
+### Команды бота
+
+Напишите боту в ВК:
 
 | Команда | Описание |
 |---------|----------|
-| `/start` | Начало работы с ботом |
-| `/search` | Начать поиск новых пользователей |
-| `/next` | Показать следующего пользователя |
-| `/like` | Поставить лайк текущему профилю |
-| `/dislike` | Пропустить текущего пользователя |
-| `/favorites` | Показать список избранных |
-| `/block` | Добавить в чёрный список |
-| `/help` | Показать справку |
+| `начать поиск` / `начать` / `start` | Запустить поиск кандидатов |
+| `следующий >>` / `далее` | Показать следующего кандидата |
+| `<< предыдущий` | Показать предыдущего кандидата |
+| `❤️ в избранное` / `лайк` | Добавить в избранное |
+| `🚫 в чёрный список` / `дизлайк` | Заблокировать кандидата |
+| `🏠 главное меню` / `меню` | Вернуться в главное меню |
+| `список избранных` / `избранное` | Показать избранных |
+| `чёрный список` / `blocked` | Показать заблокированных |
+| `❌ удалить из избранного` | Удалить из избранного |
+| `✅ удалить из чёрного списка` | Разблокировать |
+| `список партнёров` / `matches` | Показать взаимные лайки |
+
+### Пример работы
+
+```
+Пользователь: начать поиск
+
+Бот: 👤 Кристина Иккес, 29 лет, Стрежевой
+     🔗 https://vk.com/id123456
+     [3 фото]
+     [❤️ В избранное] [🚫 В ЧС] [Следующий >>]
+
+Пользователь: ❤️ в избранное
+
+Бот: ❤️ Кристина добавлена в избранное!
+
+Пользователь: следующий >>
+
+Бот: 👤 Наталья Николаевна, 26 лет, Стрежевой
+     🔗 https://vk.com/id789012
+     [3 фото]
+     [❤️ В избранное] [🚫 В ЧС] [Следующий >>]
+```
 
 ---
 
-## Схема базы данных
+## 📁 Структура проекта
 
-### Таблицы проекта
-
-#### 1. `bot_users` — Пользователи бота
-
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | SERIAL | Первичный ключ |
-| vk_id | INTEGER | ID пользователя ВКонтакте |
-| name | VARCHAR(255) | Имя |
-| surname | VARCHAR(255) | Фамилия |
-| birthdate | DATE | Дата рождения |
-| gender | SMALLINT | Пол (0-не указано, 1-женщина, 2-мужчина) |
-| looking_for | SMALLINT | Ищет (0-не важно, 1-женщины, 2-мужчины) |
-| city | VARCHAR(255) | Город |
-| age_min | SMALLINT | Минимальный возраст для мэтчей |
-| age_max | SMALLINT | Максимальный возраст для мэтчей |
-| max_distance | SMALLINT | Максимальное расстояние (км) |
-| is_active | BOOLEAN | Активен ли аккаунт |
-| last_active | DATE | Дата последней активности |
-| created_at | TIMESTAMP | Время создания |
-| updated_at | TIMESTAMP | Время обновления |
-
-#### 2. `vk_profiles` — Профили ВКонтакте
-
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | SERIAL | Первичный ключ |
-| vk_id | INTEGER | ID профиля ВКонтакте |
-| first_name | VARCHAR(255) | Имя |
-| last_name | VARCHAR(255) | Фамилия |
-| birth_year | SMALLINT | Год рождения |
-| gender | SMALLINT | Пол |
-| city | VARCHAR(255) | Город |
-| photo_urls | JSONB | URL-адреса фотографий |
-| relation | SMALLINT | Семейное положение |
-| education | TEXT | Образование |
-| created_at | TIMESTAMP | Время создания |
-| updated_at | TIMESTAMP | Время обновления |
-
-#### 3. `interests` — Интересы и хобби
-
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | SERIAL | Первичный ключ |
-| title | VARCHAR(255) | Название интереса |
-| category | VARCHAR(100) | Категория (music, sport и т.д.) |
-| vk_external_id | INTEGER | ID группы/страницы ВК |
-| created_at | TIMESTAMP | Время создания |
-| updated_at | TIMESTAMP | Время обновления |
-
-#### 4. `user_interactions` — Взаимодействия пользователей
-
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | SERIAL | Первичный ключ |
-| user_id | INTEGER | ID пользователя |
-| profile_id | INTEGER | ID профиля |
-| action | VARCHAR(20) | Тип действия (view, like, dislike, block) |
-| created_at | TIMESTAMP | Время создания |
-
-#### 5. `mutual_likes` — Взаимные лайки
-
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | SERIAL | Первичный ключ |
-| user_id | INTEGER | ID пользователя |
-| profile_id | INTEGER | ID профиля |
-| is_notified | BOOLEAN | Уведомлён ли пользователь |
-| created_at | TIMESTAMP | Время создания |
-
-#### 6. `matches` — Мэтчи между пользователями
-
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | SERIAL | Первичный ключ |
-| user1_id | INTEGER | ID первого пользователя (меньший ID) |
-| user2_id | INTEGER | ID второго пользователя (больший ID) |
-| matched_at | TIMESTAMP | Время создания мэтча |
-| is_active | BOOLEAN | Активен ли мэтч |
-
-#### 7. `messages` — Сообщения в чате мэтча
-
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | SERIAL | Первичный ключ |
-| match_id | INTEGER | ID мэтча |
-| sender_id | INTEGER | ID отправителя |
-| text | TEXT | Текст сообщения |
-| sent_at | TIMESTAMP | Время отправки |
-| is_read | BOOLEAN | Прочитано ли сообщение |
-
-#### 8. `locations` — Географическая информация
-
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | SERIAL | Первичный ключ |
-| city_name | VARCHAR(255) | Название города |
-| country | VARCHAR(255) | Страна |
-| latitude | DECIMAL | Широта |
-| longitude | DECIMAL | Долгота |
-| timezone | VARCHAR(50) | Часовой пояс |
-| population | INTEGER | Население |
-
-#### 9. Ассоциативные таблицы
-
-- `user_interests` — Связь многие-ко-многим между пользователями и интересами
-- `profile_interests` — Связь многие-ко-многим между профилями и интересами
+```
+VK-Tinder-Bot/
+├── main.py                 # Точка входа в приложение
+├── bot.py                  # Основной модуль бота (LongPoll)
+├── handlers.py             # Обработчики команд
+├── vk_client.py            # Работа с VK API
+├── vk_search.py            # Поиск кандидатов и фильтрация
+├── keyboards.py            # Inline-клавиатуры для бота
+├── state_manager.py        # Управление состоянием пользователей
+├── data_storage.py         # Обёртка для функций БД
+├── database_storage.py     # Прямая работа с PostgreSQL
+├── config.py               # Конфигурация из .env
+├── init_db.py              # Скрипт инициализации БД
+├── requirements.txt        # Python-зависимости
+├── .env                    # Переменные окружения (не в git!)
+├── .gitignore              # Игнорируемые файлы
+├── README.md               # Этот файл
+└── database/               # Модуль базы данных
+    ├── __init__.py         # Экспорт компонентов
+    ├── base.py             # Базовый класс SQLAlchemy
+    ├── db_manager.py       # DatabaseManager
+    └── models/             # ORM модели
+        ├── __init__.py     # Экспорт моделей
+        ├── user.py         # BotUser
+        ├── profile.py      # VKProfile
+        ├── interest.py     # Interest + M2M таблицы
+        ├── interaction.py  # UserInteraction, MutualLike
+        ├── match.py        # Match, Message
+        └── location.py     # Location
+```
 
 ---
 
-## Технические детали
+## 🗄 Архитектура базы данных
 
-### База данных
+### Общая схема
 
-- **СУБД:** PostgreSQL 12+
-- **ORM:** SQLAlchemy 2.0
-- **Пул соединений:** QueuePool (10 основных, 20 дополнительных)
-- **Потокобезопасность:** scoped_session
-- **Проверка соединений:** pool_pre_ping=True
+```
+┌─────────────┐      ┌──────────────────┐      ┌──────────────┐
+│  BotUser    │◄────►│ UserInteraction  │◄────►│  VKProfile   │
+└─────────────┘      └──────────────────┘      └──────────────┘
+       │                       │                       │
+       │                       │                       │
+       ▼                       ▼                       ▼
+┌─────────────┐      ┌──────────────────┐      ┌──────────────┐
+│   Match     │      │   MutualLike     │      │  Interest    │
+└─────────────┘      └──────────────────┘      └──────────────┘
+       │
+       ▼
+┌─────────────┐
+│   Message   │
+└─────────────┘
+```
 
-### API ВКонтакте
+### Основные таблицы
 
-- **Методы:** `users.get`, `photos.get`, `users.search`, `messages.send`
-- **Права доступа:** messages, users, photos
-- **Пагинация:** Поддержкаoffset-based pagination (до 1000 результатов)
-
-### Модуль database
-
-Модуль `database` предоставляет полнофункциональный ORM-интерфейс:
-
-- **DatabaseManager** — управление подключениями
-- **Модели** — 6 классов с полным описанием полей и связей
-- **Контекстные менеджеры** — автоматическое управление транзакциями
-- **Сырой SQL** — поддержка сложных запросов
-
-Документация модуля доступна в `database/README.md`.
+| Таблица | Описание | Ключевые поля |
+|---------|----------|---------------|
+| **bot_users** | Пользователи бота | vk_id, name, gender, looking_for, age_min/max |
+| **vk_profiles** | Анкеты ВК | vk_id, first_name, last_name, birth_year, photo_urls |
+| **user_interactions** | Действия | user_id, profile_id, action (view/like/dislike/block) |
+| **mutual_likes** | Взаимные лайки | user_id, profile_id, is_notified |
+| **matches** | Мэтчи | user1_id, user2_id, matched_at |
+| **messages** | Сообщения | match_id, sender_id, text, is_read |
+| **interests** | Интересы | title, category, vk_external_id |
+| **locations** | Города | city_name, country, lat, lon |
 
 ---
 
-## Примеры использования
+## 📦 Модуль database
 
-### Поиск пользователей
+### Обзор
+
+Модуль `database` предоставляет полнофункциональный ORM-интерфейс для взаимодействия с PostgreSQL. Использует SQLAlchemy с пулом соединений и потокобезопасными сессиями.
+
+### Архитектура модуля
+
+```
+database/
+├── __init__.py      # Публичный API
+├── base.py          # Базовый класс моделей
+├── db_manager.py    # DatabaseManager
+└── models/
+    ├── user.py      # BotUser
+    ├── profile.py   # VKProfile
+    ├── interest.py  # Interest + M2M
+    ├── interaction.py # UserInteraction, MutualLike
+    ├── match.py     # Match, Message
+    └── location.py  # Location
+```
+
+---
+
+## 🔧 API DatabaseManager
+
+### Класс `DatabaseManager`
+
+Управляет подключениями к PostgreSQL через SQLAlchemy.
+
+#### Основные возможности
+
+- **Пул соединений**: QueuePool (10 основных, 20 дополнительных)
+- **Проверка соединений**: `pool_pre_ping=True`
+- **Потокобезопасность**: `scoped_session`
+- **Контекстный менеджер**: автоматический commit/rollback
+- **Сырой SQL**: выполнение произвольных запросов
+
+#### Методы
+
+##### `initialize(db_url: Optional[str] = None) -> None`
+
+Инициализирует подключение к БД.
 
 ```python
-from vk_search import search_profiles
+from database.db_manager import db_manager
 
-# Поиск по критериям
-profiles = search_profiles(
-    age_min=20,
-    age_max=30,
-    gender=1,  # женщины
-    city="Москва"
+# Из config.py
+db_manager.initialize()
+
+# Или явно
+db_manager.initialize("postgresql://user:pass@host:5432/dbname")
+```
+
+##### `create_tables(drop_first: bool = False) -> None`
+
+Создаёт все таблицы.
+
+```python
+db_manager.create_tables(drop_first=False)
+```
+
+##### `get_session() -> Generator[Session, None, None]`
+
+Контекстный менеджер для сессии.
+
+```python
+with db_manager.get_session() as session:
+    users = session.query(BotUser).all()
+    # Автоматический commit или rollback
+```
+
+##### `execute_raw(query: str, params: dict = None) -> Any`
+
+Выполняет сырой SQL.
+
+```python
+results = db_manager.execute_raw(
+    "SELECT * FROM bot_users WHERE city = %(city)s",
+    {"city": "Москва"}
 )
 ```
 
-### Работа с базой данных
+##### `close() -> None`
+
+Закрывает все соединения.
 
 ```python
-from database import db_manager, BotUser, VKProfile
+db_manager.close()
+```
+
+---
+
+## 📊 Модели данных
+
+### BotUser
+
+Пользователь бота.
+
+**Таблица:** `bot_users`
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `id` | int | Первичный ключ |
+| `vk_id` | int | ID ВКонтакте (уникальный) |
+| `name` | str | Имя |
+| `surname` | str | Фамилия |
+| `birthdate` | date | Дата рождения |
+| `gender` | int | 0-не указано, 1-жен, 2-муж |
+| `looking_for` | int | 0-не важно, 1-жен, 2-муж |
+| `city` | str | Город |
+| `age_min` | int | Мин. возраст (18) |
+| `age_max` | int | Макс. возраст (99) |
+| `max_distance` | int | Расстояние (50 км) |
+| `is_active` | bool | Активен ли аккаунт |
+| `last_active` | date | Дата последней активности |
+
+**Связи:**
+- `interactions`: Один-ко-многим с `UserInteraction`
+- `matches_as_user1`, `matches_as_user2`: Один-ко-многим с `Match`
+- `interests`: Многие-ко-многим с `Interest`
+
+**Индексы:**
+- `idx_user_looking_gender`: (looking_for, gender)
+- `idx_user_age_range`: (age_min, age_max)
+- `idx_user_city_gender`: (city, gender)
+
+---
+
+### VKProfile
+
+Анкета пользователя ВКонтакте (потенциальный мэтч).
+
+**Таблица:** `vk_profiles`
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `id` | int | Первичный ключ |
+| `vk_id` | int | ID анкеты ВК (уникальный) |
+| `first_name` | str | Имя |
+| `last_name` | str | Фамилия |
+| `birth_year` | int | Год рождения |
+| `gender` | int | 0-не указано, 1-жен, 2-муж |
+| `city` | str | Город |
+| `photo_urls` | list[str] | Список URL фото |
+| `relation` | int | Семейное положение |
+| `education` | str | Образование |
+
+**Связи:**
+- `interactions`: Один-ко-многим с `UserInteraction`
+- `interests`: Многие-ко-многим с `Interest`
+
+**Индексы:**
+- `idx_profile_city_gender`: (city, gender)
+- `idx_profile_age`: (birth_year)
+
+---
+
+### Interest
+
+Интерес/хобби (справочник).
+
+**Таблица:** `interests`
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `id` | int | Первичный ключ |
+| `title` | str | Название (уникальное) |
+
+**Связи:**
+- `users`: Многие-ко-многим с `BotUser`
+- `profiles`: Многие-ко-многим с `VKProfile`
+
+**Индексы:**
+- `idx_interest_title_trigram`: GIN-индекс для поиска по триграммам
+
+---
+
+### UserInteraction
+
+Действия пользователей над анкетами.
+
+**Таблица:** `user_interactions`
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `id` | int | Первичный ключ |
+| `user_id` | int | ID пользователя (FK) |
+| `profile_id` | int | ID анкеты (FK) |
+| `action` | str | view / like / dislike / block |
+
+**Ограничения:**
+- Уникальный индекс: (user_id, profile_id, action) — одно действие каждого типа на пару
+- CHECK: `action IN ('view', 'like', 'dislike', 'block')`
+
+**Индексы:**
+- `idx_interaction_user_profile_action`: (user_id, profile_id, action) - уникальный
+- `idx_interaction_user_action`: (user_id, action)
+- `idx_interaction_profile_action`: (profile_id, action)
+
+---
+
+### MutualLike
+
+Взаимный лайк (мэтч) между пользователем и анкетой.
+
+**Таблица:** `mutual_likes`
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `id` | int | Первичный ключ |
+| `user_id` | int | ID пользователя (FK) |
+| `profile_id` | int | ID анкеты (FK) |
+| `is_notified` | bool | Уведомлён ли пользователь |
+
+**Индексы:**
+- `idx_mutual_user_profile`: (user_id, profile_id) - уникальный
+
+---
+
+### Match
+
+Мэтч между двумя пользователями бота.
+
+**Таблица:** `matches`
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `id` | int | Первичный ключ |
+| `user1_id` | int | ID первого пользователя (меньший) |
+| `user2_id` | int | ID второго пользователя (больший) |
+| `matched_at` | datetime | Время создания мэтча |
+| `is_active` | bool | Активен ли мэтч |
+
+**Ограничения:**
+- CHECK: `user1_id < user2_id`
+- Уникальный: (user1_id, user2_id)
+
+**Индексы:**
+- `idx_match_users`: (user1_id, user2_id) - уникальный
+- `idx_match_active_ordered`: (is_active, matched_at)
+
+---
+
+### Message
+
+Сообщение в чате мэтча.
+
+**Таблица:** `messages`
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `id` | int | Первичный ключ |
+| `match_id` | int | ID мэтча (FK) |
+| `sender_id` | int | ID отправителя (FK) |
+| `text` | str | Текст сообщения |
+| `sent_at` | datetime | Время отправки |
+| `is_read` | bool | Прочитано ли |
+
+**Индексы:**
+- `idx_message_match_sent`: (match_id, sent_at)
+- `idx_message_unread`: (match_id, is_read)
+
+---
+
+### Location
+
+Географическая информация о городах.
+
+**Таблица:** `locations`
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `id` | int | Первичный ключ |
+| `city_name` | str | Название города (уникальное) |
+| `country` | str | Страна |
+| `latitude` | decimal | Широта |
+| `longitude` | decimal | Долгота |
+| `timezone` | str | Часовой пояс |
+| `population` | int | Население |
+
+**Индексы:**
+- `idx_location_coords`: (latitude, longitude)
+- `idx_location_country`: (country)
+
+---
+
+## 💡 Примеры использования
+
+### Создание таблиц
+
+```python
+from database.db_manager import db_manager
+
+db_manager.initialize()
+db_manager.create_tables()
+```
+
+### Добавление нового пользователя
+
+```python
+from database import db_manager, BotUser, Interest
 
 with db_manager.get_session() as session:
-    # Добавление пользователя
     user = BotUser(
         vk_id=123456,
         name="Иван",
         surname="Петров",
         gender=2,
         looking_for=1,
-        city="Москва"
+        city="Москва",
+        age_min=20,
+        age_max=30
     )
     session.add(user)
-    
-    # Поиск профилей
-    profiles = session.query(VKProfile).filter_by(city="Москва").all()
+    # Автоматический commit
+```
+
+### Поиск потенциальных мэтчей
+
+```python
+from database import db_manager, BotUser, VKProfile
+
+def find_potential_matches(user_id: int):
+    with db_manager.get_session() as session:
+        user = session.query(BotUser).filter_by(vk_id=user_id).first()
+        
+        profiles = session.query(VKProfile).filter(
+            VKProfile.gender == user.looking_for,
+            VKProfile.city == user.city,
+        ).all()
+        
+        return profiles
+```
+
+### Запись лайка
+
+```python
+from database import db_manager, UserInteraction, MutualLike
+
+def record_like(user_id: int, profile_id: int):
+    with db_manager.get_session() as session:
+        interaction = UserInteraction(
+            user_id=user_id,
+            profile_id=profile_id,
+            action="like"
+        )
+        session.add(interaction)
 ```
 
 ---
 
-## Разработка
+## ⚙️ Конфигурация
 
-### Структура кода
+Параметры подключения загружаются из переменных окружения через `config.py`:
 
-Проект декомпозирован на модули:
-
-| Модуль | Назначение |
-|--------|------------|
-| `bot.py` | Запуск бота и настройка Long Poll |
-| `handlers.py` | Обработка сообщений и кнопок |
-| `keyboards.py` | Создание клавиатур ВКонтакте |
-| `vk_client.py` | Клиент для API ВКонтакте |
-| `vk_search.py` | Логика поиска пользователей |
-| `database/` | Работа с базой данных |
-
-### Добавление новых функций
-
-1. Добавьте логику в соответствующий модуль
-2. Обновите обработчики в `handlers.py`
-3. Обновите клавиатуры в `keyboards.py`
-4. Добавьте тесты (если применимо)
-5. Обновите документацию
+```python
+class Config:
+    HOST = os.getenv('DB_HOST', 'localhost')
+    PORT = os.getenv('DB_PORT', '5432')
+    DATABASE = os.getenv('DB_NAME', 'vkinder_db')
+    USER = os.getenv('DB_USER', 'postgres')
+    PASSWORD = os.getenv('DB_PASSWORD', '')
+    
+    GROUP_TOKEN = os.getenv('GROUP_TOKEN')
+    USER_TOKEN = os.getenv('USER_TOKEN')
+    GROUP_ID = os.getenv('GROUP_ID')
+```
 
 ---
 
-## Лицензия
+## 🔨 Разработка
 
-Этот проект создан в образовательных целях как часть командного задания по разработке программного обеспечения.
+### Рекомендации
+
+1. **Всегда используйте контекстные менеджеры** для работы с сессиями:
+
+```python
+with db_manager.get_session() as session:
+    # Операции с БД
+    pass
+```
+
+2. **Обрабатывайте транзакции** для сложных операций:
+
+```python
+try:
+    with db_manager.get_session() as session:
+        # Несколько операций
+        session.commit()
+except Exception as e:
+    session.rollback()
+    raise
+```
+
+3. **Избегайте N+1 запросов**, используя `lazy="selectin"` или `lazy="joined"`
+
+4. **Закрывайте соединения** при завершении работы:
+
+```python
+db_manager.close()
+```
+
+### Обработка ошибок
+
+| Ошибка | Причина | Решение |
+|--------|---------|---------|
+| `psycopg2.OperationalError` | Нет подключения к БД | Проверьте параметры в `.env` |
+| `SQLAlchemyError` | Ошибка запроса | Используйте try/except с rollback |
+| `IntegrityError` | Нарушение уникальности | Проверьте существование записи |
 
 ---
 
-## Авторы
+## 🐛 Известные проблемы
 
-Разработано в рамках командного проекта по курсу "Разработка программных продуктов".
+- Некоторые пользователи ВК имеют закрытые профили — бот не может получить их фото
+- В маленьких городах может быть мало кандидатов
+- При первой инициализации может потребоваться вручную создать расширение `pg_trgm`
 
 ---
 
-*Документация VK-Tinder-Bot v1.0*
+## 🚀 Планы развития
+
+- [ ] Уведомления о взаимных лайках
+- [ ] Чат между мэтчами
+- [ ] Расширенные фильтры поиска
+- [ ] Статистика для пользователей
+- [ ] Админ-панель
+- [ ] Веб-интерфейс
+- [ ] Миграции через Alembic
+
+---
+
+## 📝 Лицензия
+
+Этот проект создан в образовательных целях.
+
+---
+
+## 👨‍💻 Автор
+
+**Bunyod Utaev** — Python Developer
+
+---
+
+## 🙏 Благодарности
+
+- Команда ВКонтакте за отличный API
+- Создатели SQLAlchemy за мощную ORM
+- Сообщество PostgreSQL
+
+---
+
+**⭐ Если проект полезен — поставьте звезду на GitHub!**
