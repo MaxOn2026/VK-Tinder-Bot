@@ -12,24 +12,15 @@ def get_or_create_user_id(user_id: int) -> int:
     """Получает или создаёт пользователя. Возвращает внутренний ID."""
     with db_manager.get_session() as session:
         user = session.query(BotUser).filter(BotUser.vk_id == user_id).first()
-        
         if not user:
             user = BotUser(
-                vk_id=user_id,
-                name="User",
-                surname=str(user_id),
-                gender=0,
-                looking_for=2,
-                age_min=18,
-                age_max=99,
-                max_distance=50,
-                is_active=True,
-                last_active=date.today()
+                vk_id=user_id, name="User", surname=str(user_id),
+                gender=0, looking_for=2, age_min=18, age_max=99,
+                max_distance=50, is_active=True, last_active=date.today()
             )
             session.add(user)
             session.commit()
             return user.id
-        
         return user.id
 
 
@@ -37,20 +28,18 @@ def get_or_create_profile_id(vk_id: int) -> int:
     """Получает или создаёт профиль ВК. Возвращает внутренний ID."""
     with db_manager.get_session() as session:
         profile = session.query(VKProfile).filter(VKProfile.vk_id == vk_id).first()
-        
         if not profile:
             profile = VKProfile(vk_id=vk_id)
             session.add(profile)
             session.commit()
             return profile.id
-        
         return profile.id
 
 
 def add_like(user_id: int, candidate_vk_id: int) -> tuple:
     """
     Добавляет лайк.
-    Возвращает кортеж: (is_match: bool, match_user_vk_id: Optional[int])
+    Возвращает кортеж: (is_match: bool, match_info: dict or None)
     """
     user_db_id = get_or_create_user_id(user_id)
     profile_db_id = get_or_create_profile_id(candidate_vk_id)
@@ -60,7 +49,7 @@ def add_like(user_id: int, candidate_vk_id: int) -> tuple:
         reverse_profile = session.query(VKProfile).filter(VKProfile.vk_id == user_id).first()
         
         is_match = False
-        matched_user_vk_id = None
+        match_info = None
         
         if reverse_user and reverse_profile:
             reverse_interaction = session.query(UserInteraction).filter(
@@ -76,24 +65,23 @@ def add_like(user_id: int, candidate_vk_id: int) -> tuple:
                 user2_id = max(user_db_id, reverse_user.id)
                 
                 existing_match = session.query(Match).filter(
-                    and_(
-                        Match.user1_id == user1_id,
-                        Match.user2_id == user2_id
-                    )
+                    and_(Match.user1_id == user1_id, Match.user2_id == user2_id)
                 ).first()
                 
                 if not existing_match:
                     match = Match(
-                        user1_id=user1_id,
-                        user2_id=user2_id,
-                        matched_at=datetime.now(),
-                        is_active=True
+                        user1_id=user1_id, user2_id=user2_id,
+                        matched_at=datetime.now(), is_active=True
                     )
                     session.add(match)
                     session.commit()
-                    
                     is_match = True
-                    matched_user_vk_id = candidate_vk_id
+                    match_info = {
+                        'match_id': match.id,
+                        'user1_id': user1_id,
+                        'user2_id': user2_id,
+                        'other_user_vk_id': candidate_vk_id
+                    }
         
         existing = session.query(UserInteraction).filter(
             and_(
@@ -105,18 +93,16 @@ def add_like(user_id: int, candidate_vk_id: int) -> tuple:
         
         if not existing:
             interaction = UserInteraction(
-                user_id=user_db_id,
-                profile_id=profile_db_id,
-                action="like"
+                user_id=user_db_id, profile_id=profile_db_id, action="like"
             )
             session.add(interaction)
         
         session.commit()
-        return is_match, matched_user_vk_id
+        return is_match, match_info
 
 
 def add_match(user_id: int, candidate_vk_id: int):
-    """Создаёт match (если ещё не создан)."""
+    """Заглушка — match уже создан в add_like."""
     pass
 
 
@@ -124,7 +110,6 @@ def add_view(user_id: int, candidate_vk_id: int):
     """Добавляет просмотр кандидата."""
     user_db_id = get_or_create_user_id(user_id)
     profile_db_id = get_or_create_profile_id(candidate_vk_id)
-    
     with db_manager.get_session() as session:
         existing = session.query(UserInteraction).filter(
             and_(
@@ -133,22 +118,18 @@ def add_view(user_id: int, candidate_vk_id: int):
                 UserInteraction.action == "view"
             )
         ).first()
-        
         if not existing:
             interaction = UserInteraction(
-                user_id=user_db_id,
-                profile_id=profile_db_id,
-                action="view"
+                user_id=user_db_id, profile_id=profile_db_id, action="view"
             )
             session.add(interaction)
             session.commit()
 
 
 def add_to_favorites(user_id: int, candidate_vk_id: int) -> bool:
-    """Добавляет в избранное. Возвращает True, если добавлено."""
+    """Добавляет в избранное."""
     user_db_id = get_or_create_user_id(user_id)
     profile_db_id = get_or_create_profile_id(candidate_vk_id)
-    
     with db_manager.get_session() as session:
         existing = session.query(UserInteraction).filter(
             and_(
@@ -157,14 +138,10 @@ def add_to_favorites(user_id: int, candidate_vk_id: int) -> bool:
                 UserInteraction.action == "like"
             )
         ).first()
-        
         if existing:
             return False
-        
         interaction = UserInteraction(
-            user_id=user_db_id,
-            profile_id=profile_db_id,
-            action="like"
+            user_id=user_db_id, profile_id=profile_db_id, action="like"
         )
         session.add(interaction)
         session.commit()
@@ -172,10 +149,9 @@ def add_to_favorites(user_id: int, candidate_vk_id: int) -> bool:
 
 
 def add_to_blocked(user_id: int, candidate_vk_id: int) -> bool:
-    """Добавляет в чёрный список. Возвращает True, если добавлено."""
+    """Добавляет в чёрный список."""
     user_db_id = get_or_create_user_id(user_id)
     profile_db_id = get_or_create_profile_id(candidate_vk_id)
-    
     with db_manager.get_session() as session:
         existing = session.query(UserInteraction).filter(
             and_(
@@ -184,14 +160,10 @@ def add_to_blocked(user_id: int, candidate_vk_id: int) -> bool:
                 UserInteraction.action == "block"
             )
         ).first()
-        
         if existing:
             return False
-        
         interaction = UserInteraction(
-            user_id=user_db_id,
-            profile_id=profile_db_id,
-            action="block"
+            user_id=user_db_id, profile_id=profile_db_id, action="block"
         )
         session.add(interaction)
         session.commit()
@@ -199,10 +171,9 @@ def add_to_blocked(user_id: int, candidate_vk_id: int) -> bool:
 
 
 def remove_from_favorites(user_id: int, candidate_vk_id: int) -> bool:
-    """Удаляет из избранного. Возвращает True, если удалено."""
+    """Удаляет из избранного."""
     user_db_id = get_or_create_user_id(user_id)
     profile_db_id = get_or_create_profile_id(candidate_vk_id)
-    
     with db_manager.get_session() as session:
         interaction = session.query(UserInteraction).filter(
             and_(
@@ -211,20 +182,17 @@ def remove_from_favorites(user_id: int, candidate_vk_id: int) -> bool:
                 UserInteraction.action == "like"
             )
         ).first()
-        
         if interaction:
             session.delete(interaction)
             session.commit()
             return True
-        
         return False
 
 
 def remove_from_blocked(user_id: int, candidate_vk_id: int) -> bool:
-    """Удаляет из чёрного списка. Возвращает True, если удалено."""
+    """Удаляет из чёрного списка."""
     user_db_id = get_or_create_user_id(user_id)
     profile_db_id = get_or_create_profile_id(candidate_vk_id)
-    
     with db_manager.get_session() as session:
         interaction = session.query(UserInteraction).filter(
             and_(
@@ -233,99 +201,62 @@ def remove_from_blocked(user_id: int, candidate_vk_id: int) -> bool:
                 UserInteraction.action == "block"
             )
         ).first()
-        
         if interaction:
             session.delete(interaction)
             session.commit()
             return True
-        
         return False
 
 
 def get_favorites(user_id: int) -> list:
     """Получает список избранных VK ID."""
     user_db_id = get_or_create_user_id(user_id)
-    
     with db_manager.get_session() as session:
         interactions = session.query(UserInteraction).filter(
-            and_(
-                UserInteraction.user_id == user_db_id,
-                UserInteraction.action == "like"
-            )
+            and_(UserInteraction.user_id == user_db_id, UserInteraction.action == "like")
         ).all()
-        
         profile_ids = [i.profile_id for i in interactions]
-        
         if not profile_ids:
             return []
-        
-        profiles = session.query(VKProfile).filter(
-            VKProfile.id.in_(profile_ids)
-        ).all()
-        
+        profiles = session.query(VKProfile).filter(VKProfile.id.in_(profile_ids)).all()
         return [p.vk_id for p in profiles]
 
 
 def get_blocked(user_id: int) -> list:
     """Получает чёрный список VK ID."""
     user_db_id = get_or_create_user_id(user_id)
-    
     with db_manager.get_session() as session:
         interactions = session.query(UserInteraction).filter(
-            and_(
-                UserInteraction.user_id == user_db_id,
-                UserInteraction.action == "block"
-            )
+            and_(UserInteraction.user_id == user_db_id, UserInteraction.action == "block")
         ).all()
-        
         profile_ids = [i.profile_id for i in interactions]
-        
         if not profile_ids:
             return []
-        
-        profiles = session.query(VKProfile).filter(
-            VKProfile.id.in_(profile_ids)
-        ).all()
-        
+        profiles = session.query(VKProfile).filter(VKProfile.id.in_(profile_ids)).all()
         return [p.vk_id for p in profiles]
 
 
 def get_views(user_id: int) -> list:
     """Получает список просмотренных VK ID."""
     user_db_id = get_or_create_user_id(user_id)
-    
     with db_manager.get_session() as session:
         interactions = session.query(UserInteraction).filter(
-            and_(
-                UserInteraction.user_id == user_db_id,
-                UserInteraction.action == "view"
-            )
+            and_(UserInteraction.user_id == user_db_id, UserInteraction.action == "view")
         ).all()
-        
         profile_ids = [i.profile_id for i in interactions]
-        
         if not profile_ids:
             return []
-        
-        profiles = session.query(VKProfile).filter(
-            VKProfile.id.in_(profile_ids)
-        ).all()
-        
+        profiles = session.query(VKProfile).filter(VKProfile.id.in_(profile_ids)).all()
         return [p.vk_id for p in profiles]
 
 
 def get_matches(user_id: int) -> list:
     """Получает список матчей."""
     user_db_id = get_or_create_user_id(user_id)
-    
     with db_manager.get_session() as session:
         matches = session.query(Match).filter(
-            or_(
-                Match.user1_id == user_db_id,
-                Match.user2_id == user_db_id
-            )
+            or_(Match.user1_id == user_db_id, Match.user2_id == user_db_id)
         ).all()
-        
         match_users = []
         for match in matches:
             other_user_id = match.user2_id if match.user1_id == user_db_id else match.user1_id
@@ -337,7 +268,6 @@ def get_matches(user_id: int) -> list:
                     "surname": other_user.surname,
                     "matched_at": match.matched_at
                 })
-        
         return match_users
 
 
@@ -347,7 +277,6 @@ def get_user_settings(user_id: int) -> dict:
         user = session.query(BotUser).filter(BotUser.vk_id == user_id).first()
         if not user:
             return {}
-        
         return {
             "age_min": user.age_min,
             "age_max": user.age_max,
@@ -363,13 +292,11 @@ def update_user_settings(user_id: int, settings: dict) -> bool:
         user = session.query(BotUser).filter(BotUser.vk_id == user_id).first()
         if not user:
             return False
-        
         if "age_min" in settings:
             user.age_min = settings["age_min"]
         if "age_max" in settings:
             user.age_max = settings["age_max"]
         if "max_distance" in settings:
             user.max_distance = settings["max_distance"]
-        
         session.commit()
         return True
