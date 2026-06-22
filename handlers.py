@@ -9,7 +9,8 @@ from keyboards import (
     create_favorites_keyboard,
     create_blocked_keyboard,
     create_empty_list_keyboard,
-    create_settings_keyboard
+    create_settings_keyboard,
+    create_admin_keyboard
 )
 from state_manager import state_manager
 from data_storage import (
@@ -28,7 +29,6 @@ from data_storage import (
     update_user_settings
 )
 
-# Логирование
 logger = logging.getLogger(__name__)
 
 
@@ -48,7 +48,7 @@ def send_message(user_id, message, attachment=None, keyboard=None):
             logger.info(f"📎 Вложение: {attachment}")
         if keyboard:
             params['keyboard'] = keyboard
-            logger.info(f"️ Клавиатура добавлена")
+            logger.info(f"⌨️ Клавиатура добавлена")
         
         vk.messages.send(**params)
         logger.info(f"✅ Сообщение отправлено пользователю {user_id}")
@@ -88,9 +88,7 @@ def handle_search(user_id):
         logger.info(f"   Возраст: {user_info['age']}")
         logger.info(f"   Город: {user_info['city_name']} (ID: {user_info['city_id']})")
         
-        # Получаем настройки пользователя
         settings = get_user_settings(user_id)
-        
         candidates = search_candidates(user_info, user_id, count=20, settings=settings)
         
         if not candidates:
@@ -105,7 +103,6 @@ def handle_search(user_id):
         })
         
         logger.info(f"✅ Найдено {len(candidates)} кандидатов")
-        
         show_current_partner(user_id)
         
     except Exception as e:
@@ -137,7 +134,6 @@ def show_current_partner(user_id):
     candidate = candidates[current_index]
     candidate_id = candidate['id']
     
-    # Записываем просмотр
     add_view(user_id, candidate_id)
     
     message = format_candidate_info(candidate)
@@ -145,7 +141,6 @@ def show_current_partner(user_id):
     keyboard = create_partner_keyboard(current_index, len(candidates))
     
     send_message(user_id, message, attachment=attachment, keyboard=keyboard)
-    
     logger.info(f"👤 Показан кандидат: {candidate['first_name']} {candidate['last_name']} (ID: {candidate_id})")
 
 
@@ -195,14 +190,11 @@ def handle_add_to_favorites(user_id):
         candidate = candidates[current_index]
         candidate_id = candidate['id']
         
-        # Добавляем в БД
         added = db_add_favorite(user_id, candidate_id)
         
         if added:
-            # Проверяем match (новая функция возвращает кортеж)
             result = add_like(user_id, candidate_id)
             
-            # Проверяем тип результата
             if isinstance(result, tuple):
                 is_match, matched_user_vk_id = result
             else:
@@ -255,7 +247,7 @@ def handle_add_to_blocked(user_id):
         else:
             send_message(
                 user_id,
-                f"️ {candidate['first_name']} уже в чёрном списке",
+                f"⚠️ {candidate['first_name']} уже в чёрном списке",
                 keyboard=create_partner_keyboard(current_index, len(candidates))
             )
 
@@ -302,7 +294,6 @@ def handle_show_favorites(user_id):
         )
         return
     
-    # Получаем данные избранных из VK API
     vk_user = get_vk_session().get_api()
     
     try:
@@ -333,7 +324,7 @@ def show_current_favorite(user_id):
     if current_index >= len(favorites):
         send_message(
             user_id,
-            " Больше нет избранных",
+            "📭 Больше нет избранных",
             keyboard=create_main_menu_keyboard()
         )
         return
@@ -362,7 +353,6 @@ def show_current_favorite(user_id):
     message = f"❤️ {first_name} {last_name}{age_text}{city_text}\n🔗 {profile_link}\n📊 {current_index + 1} из {len(favorites)}"
     
     keyboard = create_favorites_keyboard(current_index, len(favorites))
-    
     send_message(user_id, message, keyboard=keyboard)
 
 
@@ -408,7 +398,7 @@ def show_current_blocked(user_id):
     if current_index >= len(blocked):
         send_message(
             user_id,
-            " Больше нет заблокированных",
+            "📭 Больше нет заблокированных",
             keyboard=create_main_menu_keyboard()
         )
         return
@@ -434,10 +424,9 @@ def show_current_blocked(user_id):
     if 'city' in blocked_user:
         city_text = f", {blocked_user['city'].get('title', '')}"
     
-    message = f" {first_name} {last_name}{age_text}{city_text}\n🔗 {profile_link}\n📊 {current_index + 1} из {len(blocked)}"
+    message = f"🚫 {first_name} {last_name}{age_text}{city_text}\n🔗 {profile_link}\n📊 {current_index + 1} из {len(blocked)}"
     
     keyboard = create_blocked_keyboard(current_index, len(blocked))
-    
     send_message(user_id, message, keyboard=keyboard)
 
 
@@ -539,8 +528,6 @@ def handle_settings(user_id):
 
 def handle_change_age(user_id):
     """Обработка 'Изменить возраст'."""
-    state = state_manager.get_state(user_id)
-    
     state_manager.set_state(user_id, {
         'mode': 'waiting_age',
         'current_index': 0
@@ -557,8 +544,6 @@ def handle_change_age(user_id):
 
 def handle_change_distance(user_id):
     """Обработка 'Изменить расстояние'."""
-    state = state_manager.get_state(user_id)
-    
     state_manager.set_state(user_id, {
         'mode': 'waiting_distance',
         'current_index': 0
@@ -572,8 +557,93 @@ def handle_change_distance(user_id):
     )
 
 
+def handle_admin_menu(user_id):
+    """Обработка 'Админ-панель'."""
+    from admin import is_admin
+    
+    if not is_admin(user_id):
+        send_message(user_id, "❌ У вас нет прав администратора")
+        return
+    
+    message = "🔐 Админ-панель\n\nВыберите действие:"
+    send_message(user_id, message, keyboard=create_admin_keyboard())
+
+
+def handle_admin_users(user_id):
+    """Обработка 'Список пользователей'."""
+    from admin import is_admin, get_all_users
+    
+    if not is_admin(user_id):
+        send_message(user_id, "❌ У вас нет прав администратора")
+        return
+    
+    users = get_all_users()
+    
+    if not users:
+        send_message(user_id, "📭 Пользователей пока нет")
+        return
+    
+    message = "👥 Список пользователей:\n\n"
+    for i, user in enumerate(users[:10], 1):
+        status = "✅" if user['is_active'] else "🚫"
+        message += f"{i}. {status} {user['name']} (ID: {user['vk_id']})\n"
+    
+    if len(users) > 10:
+        message += f"\n... и ещё {len(users) - 10} пользователей"
+    
+    send_message(user_id, message)
+
+
+def handle_admin_stats(user_id):
+    """Обработка 'Статистика пользователей'."""
+    from admin import is_admin, get_all_users, get_user_statistics
+    
+    if not is_admin(user_id):
+        send_message(user_id, "❌ У вас нет прав администратора")
+        return
+    
+    users = get_all_users()
+    
+    if not users:
+        send_message(user_id, "📭 Пользователей пока нет")
+        return
+    
+    message = "📊 Статистика пользователей:\n\n"
+    for i, user in enumerate(users[:5], 1):
+        stats = get_user_statistics(user['vk_id'])
+        if stats:
+            message += (
+                f"{i}. {user['name']} (ID: {user['vk_id']})\n"
+                f"   ❤️ Лайков: {stats['likes']}\n"
+                f"   🚫 Блоков: {stats['blocks']}\n"
+                f"   🎉 Матчей: {stats['matches']}\n\n"
+            )
+    
+    send_message(user_id, message)
+
+
+def handle_admin_broadcast(user_id):
+    """Обработка 'Рассылка сообщений'."""
+    from admin import is_admin
+    
+    if not is_admin(user_id):
+        send_message(user_id, "❌ У вас нет прав администратора")
+        return
+    
+    state_manager.set_state(user_id, {
+        'mode': 'waiting_broadcast',
+        'current_index': 0
+    })
+    
+    send_message(
+        user_id,
+        "📢 Введите сообщение для рассылки всем пользователям:\n\n"
+        "Или напишите 'отмена' для отмены"
+    )
+
+
 def handle_text_message(user_id, text):
-    """Обработка текстовых сообщений для настроек."""
+    """Обработка текстовых сообщений для настроек и админки."""
     state = state_manager.get_state(user_id)
     
     if not state:
@@ -636,6 +706,30 @@ def handle_text_message(user_id, text):
                 send_message(user_id, "❌ Расстояние должно быть от 1 до 1000 км")
         except ValueError:
             send_message(user_id, "❌ Введите число")
+    
+    elif mode == 'waiting_broadcast':
+        if text.lower() == 'отмена':
+            state_manager.set_state(user_id, {
+                'mode': 'main_menu',
+                'current_index': 0
+            })
+            send_message(user_id, "❌ Рассылка отменена")
+            return True
+        
+        from admin import send_broadcast
+        sent_count = send_broadcast(text)
+        
+        state_manager.set_state(user_id, {
+            'mode': 'main_menu',
+            'current_index': 0
+        })
+        
+        send_message(
+            user_id,
+            f"✅ Сообщение отправлено {sent_count} пользователям",
+            keyboard=create_main_menu_keyboard()
+        )
+        return True
     
     return False
 
