@@ -1,11 +1,9 @@
 """Репозиторий для взаимодействий (лайки, просмотры, блокировки)."""
-from datetime import datetime
 from typing import List, Optional
 from sqlalchemy import select, and_
 from database.db_manager import db_manager
 from database.models.interaction import UserInteraction, MutualLike
 from database.models.user import BotUser
-from database.models.profile import VKProfile
 
 
 def add_interaction(

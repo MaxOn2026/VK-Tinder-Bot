@@ -57,7 +57,7 @@ def _determine_looking_for(gender: int) -> int:
     return 2 if gender == 1 else 1
 
 
-def _create_user_from_vk(session, vk_id: int, vk_data: Dict[str, Any]) -> BotUser:
+def _create_user_from_vk(vk_id: int, vk_data: Dict[str, Any]) -> BotUser:
     """Создаёт нового пользователя в БД на основе данных из VK."""
     gender = vk_data["gender"]
     looking_for = _determine_looking_for(gender)
@@ -78,7 +78,7 @@ def _create_user_from_vk(session, vk_id: int, vk_data: Dict[str, Any]) -> BotUse
     return user
 
 
-def _update_user_name(session, user: BotUser, vk_data: Dict[str, Any]) -> None:
+def _update_user_name(user: BotUser, vk_data: Dict[str, Any]) -> None:
     """Обновляет имя/фамилию пользователя, если они пустые."""
     needs_update = False
 
@@ -113,7 +113,7 @@ def get_or_create_user(vk_id: int) -> BotUser:
         if user is None:
             vk_data = _fetch_vk_user_data(vk_id)
             user = (
-                _create_user_from_vk(session, vk_id, vk_data)
+                _create_user_from_vk(vk_id, vk_data)
                 if vk_data
                 else BotUser(vk_id=vk_id, name=DEFAULT_USER_NAME, surname="")
             )
@@ -126,7 +126,7 @@ def get_or_create_user(vk_id: int) -> BotUser:
         else:
             vk_data = _fetch_vk_user_data(vk_id)
             if vk_data:
-                _update_user_name(session, user, vk_data)
+                _update_user_name(user, vk_data)
 
         return user
 

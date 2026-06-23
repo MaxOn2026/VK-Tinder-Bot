@@ -134,8 +134,8 @@ def save_candidate(candidate_data: Dict[str, Any]) -> Optional[VKProfile]:
             parts = bdate.split('.')
             if len(parts) == 3:
                 birth_year = int(parts[2])
-        except:
-            pass
+        except Exception as e:
+            print(f"Error occurred while parsing birth year: {e}")
 
     gender = candidate_data.get('sex', 0)
 
@@ -163,19 +163,58 @@ def save_candidate(candidate_data: Dict[str, Any]) -> Optional[VKProfile]:
             )
             session.add(profile)
         else:
-            # Обновляем данные, если они стали полнее
-            if not profile.first_name and first_name:
-                profile.first_name = first_name
-            if not profile.last_name and last_name:
-                profile.last_name = last_name
-            if profile.birth_year is None and birth_year is not None:
-                profile.birth_year = birth_year
-            if profile.gender == 0 and gender != 0:
-                profile.gender = gender
-            if profile.city is None and city:
-                profile.city = city
+            _update_profile_with_candidate(
+                profile,
+                first_name,
+                last_name,
+                birth_year,
+                gender,
+                city,
+            )
 
         return profile
+
+
+def _parse_birth_year(bdate: Optional[str]) -> Optional[int]:
+    if not bdate:
+        return None
+
+    parts = bdate.split('.')
+    if len(parts) != 3:
+        return None
+
+    try:
+        return int(parts[2])
+    except ValueError:
+        return None
+
+
+def _parse_city(city_data: Any) -> Optional[str]:
+    if isinstance(city_data, dict):
+        return city_data.get('title')
+    if isinstance(city_data, str):
+        return city_data
+    return None
+
+
+def _update_profile_with_candidate(
+    profile: VKProfile,
+    first_name: str,
+    last_name: str,
+    birth_year: Optional[int],
+    gender: int,
+    city: Optional[str],
+) -> None:
+    if not profile.first_name and first_name:
+        profile.first_name = first_name
+    if not profile.last_name and last_name:
+        profile.last_name = last_name
+    if profile.birth_year is None and birth_year is not None:
+        profile.birth_year = birth_year
+    if profile.gender == 0 and gender != 0:
+        profile.gender = gender
+    if profile.city is None and city:
+        profile.city = city
 
 
 def get_profiles_by_city(city: str) -> List[VKProfile]:

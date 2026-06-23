@@ -20,7 +20,6 @@ from typing import Optional
 from database.repositories.interaction_repo import (
     add_interaction,
     add_like_and_check_match,
-    add_match,
     get_matches,
     get_user_interactions,
     remove_interaction,
@@ -29,7 +28,6 @@ from database.repositories.user_repo import get_or_create_user
 
 from .keyboards import (
     create_blocked_keyboard,
-    create_empty_list_keyboard,
     create_favorites_keyboard,
     create_main_menu_keyboard,
     create_matches_keyboard,
@@ -544,7 +542,6 @@ def handle_show_favorites(user_id: int) -> None:
         return
 
     # Получаем данные избранных из VK API
-    from .vk_search import get_user_info
 
     vk_user = get_vk_session().get_api()
 

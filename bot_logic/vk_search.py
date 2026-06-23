@@ -41,6 +41,24 @@ def get_user_info(user_id):
         return None
 
 
+def _should_skip_candidate(item, user_id, blocked, favorites, views):
+    candidate_id = item.get("id")
+    return (
+        item.get("is_closed", False)
+        or candidate_id == user_id
+        or candidate_id in blocked
+        or candidate_id in favorites
+        or candidate_id in views
+    )
+
+
+def _cache_candidate(item):
+    try:
+        save_candidate(item)
+    except Exception as e:
+        print(f"⚠️ Ошибка кэширования кандидата {item.get('id')}: {e}")
+
+
 def search_candidates(user_info, user_id, count=20):
     """
     Ищет кандидатов через VK API users.search.
@@ -75,34 +93,10 @@ def search_candidates(user_info, user_id, count=20):
         # Фильтруем
         filtered = []
         for item in items:
-            candidate_id = item["id"]
-
-            # Пропускаем закрытые профили
-            if item.get("is_closed", False):
+            if _should_skip_candidate(item, user_id, blocked, favorites, views):
                 continue
 
-            # Пропускаем себя
-            if candidate_id == user_id:
-                continue
-
-            # Пропускаем заблокированных
-            if candidate_id in blocked:
-                continue
-
-            # Пропускаем избранных
-            if candidate_id in favorites:
-                continue
-
-            # Пропускаем уже просмотренных
-            if candidate_id in views:
-                continue
-
-            # Кэшируем кандидата в БД
-            try:
-                save_candidate(item)
-            except Exception as e:
-                print(f"⚠️ Ошибка кэширования кандидата {candidate_id}: {e}")
-
+            _cache_candidate(item)
             filtered.append(item)
 
         print(f"✅ Найдено {len(filtered)} кандидатов из {count} (после фильтрации)")
