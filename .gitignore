@@ -1,9 +1,44 @@
-.env
-user_data.json
-__pycache__/
-*.pyc
-.vscode/
+# Виртуальное окружение
 venv/
+env/
+ENV/
+
+# Переменные окружения (НЕ коммитим токены!)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
 .idea/
+*.swp
+*.swo
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# База данных
+*.db
+*.sqlite
+*.sqlite3
+
+# Логи
 *.log
-.gigacode/
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Данные пользователей
+user_data.json

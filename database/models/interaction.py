@@ -1,4 +1,5 @@
 """Модели для лайков, дизлайков, просмотров и блокировок."""
+
 from typing import Optional, TYPE_CHECKING
 from sqlalchemy import ForeignKey, String, Integer, Index, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -15,19 +16,13 @@ class UserInteraction(Base):
     __tablename__ = "user_interactions"
 
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("bot_users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+        ForeignKey("bot_users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     profile_id: Mapped[int] = mapped_column(
-        ForeignKey("vk_profiles.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+        ForeignKey("vk_profiles.id", ondelete="CASCADE"), nullable=False, index=True
     )
     action: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-        comment="view/like/dislike/block"
+        String(20), nullable=False, comment="view/like/dislike/block"
     )
 
     user: Mapped["BotUser"] = relationship("BotUser", back_populates="interactions")
@@ -35,12 +30,18 @@ class UserInteraction(Base):
 
     __table_args__ = (
         # Уникальность тройки (user, profile, action)
-        Index("idx_interaction_user_profile_action", "user_id", "profile_id", "action", unique=True),
+        Index(
+            "idx_interaction_user_profile_action",
+            "user_id",
+            "profile_id",
+            "action",
+            unique=True,
+        ),
         Index("idx_interaction_user_action", "user_id", "action"),
         Index("idx_interaction_profile_action", "profile_id", "action"),
         CheckConstraint(
             "action IN ('view', 'like', 'dislike', 'block')",
-            name="check_interaction_action"
+            name="check_interaction_action",
         ),
     )
 
@@ -54,14 +55,10 @@ class MutualLike(Base):
     __tablename__ = "mutual_likes"
 
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("bot_users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+        ForeignKey("bot_users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     profile_id: Mapped[int] = mapped_column(
-        ForeignKey("vk_profiles.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+        ForeignKey("vk_profiles.id", ondelete="CASCADE"), nullable=False, index=True
     )
     is_notified: Mapped[bool] = mapped_column(default=False, nullable=False)
 

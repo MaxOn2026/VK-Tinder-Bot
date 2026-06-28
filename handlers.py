@@ -1,12 +1,19 @@
 """Модуль обработчиков команд бота."""
+
 import random
 import logging
+import vk_api
+from vk_api.exceptions import ApiError  # ← ДОБАВЛЕН ЭТОТ ИМПОРТ
 from vk_client import get_vk_session
 from keyboards import (
-    create_start_keyboard, create_main_menu_keyboard,
-    create_partner_keyboard, create_favorites_keyboard,
-    create_blocked_keyboard, create_empty_list_keyboard,
-    create_settings_keyboard, create_admin_keyboard
+    create_start_keyboard,
+    create_main_menu_keyboard,
+    create_partner_keyboard,
+    create_favorites_keyboard,
+    create_blocked_keyboard,
+    create_empty_list_keyboard,
+    create_settings_keyboard,
+    create_admin_keyboard,
 )
 from state_manager import state_manager
 from data_storage import (
@@ -14,35 +21,53 @@ from data_storage import (
     add_to_blocked as db_add_blocked,
     remove_from_favorites as db_remove_favorite,
     remove_from_blocked as db_remove_blocked,
-    add_like, add_match, add_view,
-    get_favorites, get_blocked, get_views, get_matches,
-    get_user_settings, update_user_settings
+    add_like,
+    add_match,
+    add_view,
+    get_favorites,
+    get_blocked,
+    get_views,
+    get_matches,
+    get_user_settings,
+    update_user_settings,
 )
 
 logger = logging.getLogger(__name__)
 
 
 def send_message(user_id, message, attachment=None, keyboard=None):
-    """Отправляет сообщение пользователю."""
+    """Отправляет сообщение пользователю с улучшенной обработкой ошибок."""
     logger.info(f"📤 Отправка сообщения пользователю {user_id}: '{message[:50]}...'")
     try:
         vk = get_vk_session().get_api()
         params = {
-            'user_id': user_id,
-            'message': message,
-            'random_id': random.randint(-2147483648, 2147483647)
+            "user_id": user_id,
+            "message": message,
+            "random_id": random.getrandbits(31),
         }
         if attachment:
-            params['attachment'] = attachment
+            params["attachment"] = attachment
             logger.info(f"📎 Вложение: {attachment}")
         if keyboard:
-            params['keyboard'] = keyboard
+            params["keyboard"] = keyboard
             logger.info(f"⌨️ Клавиатура добавлена")
         vk.messages.send(**params)
         logger.info(f"✅ Сообщение отправлено пользователю {user_id}")
+        return True
+
+    except ApiError as e:
+        # Обработка ошибок VK API
+        if e.code == 901:
+            logger.warning(f"⚠️ Пользователь {user_id} запретил отправку сообщений")
+        elif e.code == 902:
+            logger.warning(f"⚠️ Нет доступа к сообщениям пользователя {user_id}")
+        else:
+            logger.error(f"❌ Ошибка VK API при отправке сообщения: {e}", exc_info=True)
+        return False
+
     except Exception as e:
         logger.error(f"❌ Ошибка отправки сообщения: {e}", exc_info=True)
-        raise
+        return False
 
 
 def handle_start(user_id):
@@ -52,16 +77,19 @@ def handle_start(user_id):
         logger.info(f"✅ handle_start завершён для {user_id}")
     except Exception as e:
         logger.error(f"❌ Ошибка в handle_start: {e}", exc_info=True)
-        send_message(user_id, f"❌ Произошла ошибка: {e}")
+        send_message(user_id, "❌ Произошла ошибка. Попробуйте позже.")
 
 
 def handle_search(user_id):
     from vk_search import get_user_info, search_candidates
+
     logger.info(f"🔍 handle_search вызван для пользователя {user_id}")
     try:
         user_info = get_user_info(user_id)
         if not user_info:
-            send_message(user_id, "❌ Не удалось получить ваши данные. Попробуйте позже.")
+            send_message(
+                user_id, "❌ Не удалось получить ваши данные. Попробуйте позже."
+            )
             return
         logger.info(f"📊 Данные пользователя {user_id}:")
         logger.info(f"   Пол: {user_info['sex']} (1-жен, 2-муж)")
@@ -70,39 +98,58 @@ def handle_search(user_id):
         settings = get_user_settings(user_id)
         candidates = search_candidates(user_info, user_id, count=20, settings=settings)
         if not candidates:
-            send_message(user_id, " Не нашёл подходящих людей. Попробуйте позже.")
+            send_message(user_id, "😔 Не нашёл подходящих людей. Попробуйте позже.")
             return
-        state_manager.set_state(user_id, {
-            'mode': 'partners', 'candidates': candidates,
-            'current_index': 0, 'user_info': user_info
-        })
+        state_manager.set_state(
+            user_id,
+            {
+                "mode": "partners",
+                "candidates": candidates,
+                "current_index": 0,
+                "user_info": user_info,
+            },
+        )
         logger.info(f"✅ Найдено {len(candidates)} кандидатов")
         show_current_partner(user_id)
     except Exception as e:
         logger.error(f"❌ Ошибка в handle_search: {e}", exc_info=True)
-        send_message(user_id, f"❌ Произошла ошибка: {e}")
+        send_message(user_id, "❌ Произошла ошибка. Попробуйте позже.")
 
 
 def show_current_partner(user_id):
     from vk_search import format_candidate_info, get_top_photos
+
     state = state_manager.get_state(user_id)
     if not state:
         send_message(user_id, "❌ Сначала нажмите 'Начать поиск'")
         return
-    candidates = state['candidates']
-    current_index = state['current_index']
+    candidates = state["candidates"]
+    current_index = state["current_index"]
     if current_index >= len(candidates):
-        send_message(user_id, " Все кандидаты просмотрены!", keyboard=create_main_menu_keyboard())
-        state_manager.set_state(user_id, {**state, 'mode': 'main_menu'})
+        send_message(
+            user_id,
+            "😔 Все кандидаты просмотрены!",
+            keyboard=create_main_menu_keyboard(),
+        )
+        state_manager.set_state(user_id, {**state, "mode": "main_menu"})
         return
     candidate = candidates[current_index]
-    candidate_id = candidate['id']
+    candidate_id = candidate["id"]
     add_view(user_id, candidate_id)
     message = format_candidate_info(candidate)
-    attachment = get_top_photos(candidate_id, count=3)
+
+    # ✅ ИСПРАВЛЕНО: Обработка закрытых профилей (пункт 8)
+    try:
+        attachment = get_top_photos(candidate_id, count=3)
+    except Exception as e:
+        logger.warning(f"⚠️ Не удалось получить фото для {candidate_id}: {e}")
+        attachment = None
+
     keyboard = create_partner_keyboard(current_index, len(candidates))
     send_message(user_id, message, attachment=attachment, keyboard=keyboard)
-    logger.info(f"👤 Показан кандидат: {candidate['first_name']} {candidate['last_name']} (ID: {candidate_id})")
+    logger.info(
+        f"👤 Показан кандидат: {candidate['first_name']} {candidate['last_name']} (ID: {candidate_id})"
+    )
 
 
 def handle_next(user_id):
@@ -110,12 +157,12 @@ def handle_next(user_id):
     if not state:
         send_message(user_id, "❌ Сначала нажмите 'Начать поиск'")
         return
-    state_manager.update_index(user_id, state['current_index'] + 1)
-    if state['mode'] == 'partners':
+    state_manager.update_index(user_id, state["current_index"] + 1)
+    if state["mode"] == "partners":
         show_current_partner(user_id)
-    elif state['mode'] == 'favorites':
+    elif state["mode"] == "favorites":
         show_current_favorite(user_id)
-    elif state['mode'] == 'blocked':
+    elif state["mode"] == "blocked":
         show_current_blocked(user_id)
 
 
@@ -123,67 +170,58 @@ def handle_previous(user_id):
     state = state_manager.get_state(user_id)
     if not state:
         return
-    state_manager.update_index(user_id, state['current_index'] - 1)
-    if state['mode'] == 'partners':
+    state_manager.update_index(user_id, state["current_index"] - 1)
+    if state["mode"] == "partners":
         show_current_partner(user_id)
-    elif state['mode'] == 'favorites':
+    elif state["mode"] == "favorites":
         show_current_favorite(user_id)
-    elif state['mode'] == 'blocked':
+    elif state["mode"] == "blocked":
         show_current_blocked(user_id)
 
 
 def handle_add_to_favorites(user_id):
+    """Обработка 'В избранное' - добавляет лайк и проверяет взаимность."""
     state = state_manager.get_state(user_id)
     if not state:
         return
-    candidates = state['candidates']
-    current_index = state['current_index']
+    candidates = state["candidates"]
+    current_index = state["current_index"]
     if current_index < len(candidates):
         candidate = candidates[current_index]
-        candidate_id = candidate['id']
-        added = db_add_favorite(user_id, candidate_id)
-        if added:
-            result = add_like(user_id, candidate_id)
-            if isinstance(result, tuple):
-                is_match, match_info = result
-            else:
-                is_match = result
-                match_info = None
-            if is_match and match_info:
-                send_message(
-                    user_id,
-                    f" У вас взаимный лайк с {candidate['first_name']}!\n"
-                    f"💬 Теперь вы можете общаться друг с другом!\n\n"
-                    f"Напишите 'мэтчи' чтобы увидеть список",
-                    keyboard=create_partner_keyboard(current_index, len(candidates))
+        candidate_id = candidate["id"]
+
+        # ✅ ИСПРАВЛЕНО: Убрано дублирование! Теперь только add_like (пункт 7)
+        result = add_like(user_id, candidate_id)
+
+        if isinstance(result, tuple):
+            is_match, match_info = result
+        else:
+            is_match = result
+            match_info = None
+
+        if is_match and match_info:
+            send_message(
+                user_id,
+                f"🎉 У вас взаимный лайк с {candidate['first_name']}!\n"
+                f"💬 Теперь вы можете общаться друг с другом!\n\n"
+                f"Напишите 'мэтчи' чтобы увидеть список",
+                keyboard=create_partner_keyboard(current_index, len(candidates)),
+            )
+            # Уведомляем другого пользователя
+            try:
+                vk = get_vk_session().get_api()
+                vk.messages.send(
+                    user_id=candidate_id,
+                    message=f"🎉 У вас взаимный лайк!\n💬 Теперь вы можете общаться!",
+                    random_id=random.getrandbits(31),
                 )
-                # Уведомляем другого пользователя
-                try:
-                    from admin import get_all_users
-                    users = get_all_users()
-                    for user in users:
-                        if user['vk_id'] == candidate_id:
-                            from vk_client import get_vk_session
-                            vk = get_vk_session().get_api()
-                            vk.messages.send(
-                                user_id=candidate_id,
-                                message=f"🎉 У вас взаимный лайк!\n💬 Теперь вы можете общаться!",
-                                random_id=0
-                            )
-                            break
-                except Exception as e:
-                    logger.error(f"Ошибка отправки уведомления: {e}")
-            else:
-                send_message(
-                    user_id,
-                    f"❤️ {candidate['first_name']} добавлена в избранное!",
-                    keyboard=create_partner_keyboard(current_index, len(candidates))
-                )
+            except Exception as e:
+                logger.error(f"Ошибка отправки уведомления: {e}")
         else:
             send_message(
                 user_id,
-                f"⚠️ {candidate['first_name']} уже в избранном",
-                keyboard=create_partner_keyboard(current_index, len(candidates))
+                f"❤️ {candidate['first_name']} добавлена в избранное!",
+                keyboard=create_partner_keyboard(current_index, len(candidates)),
             )
 
 
@@ -191,31 +229,35 @@ def handle_add_to_blocked(user_id):
     state = state_manager.get_state(user_id)
     if not state:
         return
-    candidates = state['candidates']
-    current_index = state['current_index']
+    candidates = state["candidates"]
+    current_index = state["current_index"]
     if current_index < len(candidates):
         candidate = candidates[current_index]
-        candidate_id = candidate['id']
+        candidate_id = candidate["id"]
         added = db_add_blocked(user_id, candidate_id)
         if added:
             send_message(
                 user_id,
                 f"🚫 {candidate['first_name']} добавлена в чёрный список!",
-                keyboard=create_partner_keyboard(current_index, len(candidates))
+                keyboard=create_partner_keyboard(current_index, len(candidates)),
             )
         else:
             send_message(
                 user_id,
                 f"⚠️ {candidate['first_name']} уже в чёрном списке",
-                keyboard=create_partner_keyboard(current_index, len(candidates))
+                keyboard=create_partner_keyboard(current_index, len(candidates)),
             )
 
 
 def handle_main_menu(user_id):
-    state_manager.set_state(user_id, {
-        'mode': 'main_menu', 'candidates': [], 'current_index': 0
-    })
-    send_message(user_id, "🏠 Главное меню\nВыберите действие:", keyboard=create_main_menu_keyboard())
+    state_manager.set_state(
+        user_id, {"mode": "main_menu", "candidates": [], "current_index": 0}
+    )
+    send_message(
+        user_id,
+        "🏠 Главное меню\nВыберите действие:",
+        keyboard=create_main_menu_keyboard(),
+    )
 
 
 def handle_show_partners(user_id):
@@ -225,7 +267,7 @@ def handle_show_partners(user_id):
         send_message(
             user_id,
             "😔 Список мэтчей пуст.\nЛайкайте пользователей, чтобы найти мэтчи!",
-            keyboard=create_main_menu_keyboard()
+            keyboard=create_main_menu_keyboard(),
         )
         return
     message = "🎉 Ваши мэтчи:\n\n"
@@ -240,14 +282,19 @@ def handle_show_partners(user_id):
 def handle_show_favorites(user_id):
     favorites_ids = get_favorites(user_id)
     if not favorites_ids:
-        send_message(user_id, " Список избранных пуст", keyboard=create_main_menu_keyboard())
+        send_message(
+            user_id, "😔 Список избранных пуст", keyboard=create_main_menu_keyboard()
+        )
         return
     vk_user = get_vk_session().get_api()
     try:
-        users_data = vk_user.users.get(user_ids=favorites_ids[:10], fields='sex,city,bdate')
-        state_manager.set_state(user_id, {
-            'mode': 'favorites', 'favorites_list': users_data, 'current_index': 0
-        })
+        users_data = vk_user.users.get(
+            user_ids=favorites_ids[:10], fields="sex,city,bdate"
+        )
+        state_manager.set_state(
+            user_id,
+            {"mode": "favorites", "favorites_list": users_data, "current_index": 0},
+        )
         show_current_favorite(user_id)
     except Exception as e:
         logger.error(f"❌ Ошибка получения данных избранных: {e}")
@@ -258,27 +305,29 @@ def show_current_favorite(user_id):
     state = state_manager.get_state(user_id)
     if not state:
         return
-    favorites = state.get('favorites_list', [])
-    current_index = state['current_index']
+    favorites = state.get("favorites_list", [])
+    current_index = state["current_index"]
     if current_index >= len(favorites):
-        send_message(user_id, " Больше нет избранных", keyboard=create_main_menu_keyboard())
+        send_message(
+            user_id, "😔 Больше нет избранных", keyboard=create_main_menu_keyboard()
+        )
         return
     favorite = favorites[current_index]
-    first_name = favorite.get('first_name', '')
-    last_name = favorite.get('last_name', '')
-    favorite_id = favorite['id']
+    first_name = favorite.get("first_name", "")
+    last_name = favorite.get("last_name", "")
+    favorite_id = favorite["id"]
     profile_link = f"https://vk.com/id{favorite_id}"
     age_text = ""
-    if 'bdate' in favorite:
+    if "bdate" in favorite:
         try:
-            parts = favorite['bdate'].split('.')
+            parts = favorite["bdate"].split(".")
             if len(parts) == 3:
                 age = 2026 - int(parts[2])
                 age_text = f", {age} лет"
         except:
             pass
     city_text = ""
-    if 'city' in favorite:
+    if "city" in favorite:
         city_text = f", {favorite['city'].get('title', '')}"
     message = f"❤️ {first_name} {last_name}{age_text}{city_text}\n🔗 {profile_link}\n📊 {current_index + 1} из {len(favorites)}"
     keyboard = create_favorites_keyboard(current_index, len(favorites))
@@ -288,14 +337,18 @@ def show_current_favorite(user_id):
 def handle_show_blocked(user_id):
     blocked_ids = get_blocked(user_id)
     if not blocked_ids:
-        send_message(user_id, "📭 Чёрный список пуст", keyboard=create_main_menu_keyboard())
+        send_message(
+            user_id, "📭 Чёрный список пуст", keyboard=create_main_menu_keyboard()
+        )
         return
     vk_user = get_vk_session().get_api()
     try:
-        users_data = vk_user.users.get(user_ids=blocked_ids[:10], fields='sex,city,bdate')
-        state_manager.set_state(user_id, {
-            'mode': 'blocked', 'blocked_list': users_data, 'current_index': 0
-        })
+        users_data = vk_user.users.get(
+            user_ids=blocked_ids[:10], fields="sex,city,bdate"
+        )
+        state_manager.set_state(
+            user_id, {"mode": "blocked", "blocked_list": users_data, "current_index": 0}
+        )
         show_current_blocked(user_id)
     except Exception as e:
         logger.error(f"❌ Ошибка получения данных чёрного списка: {e}")
@@ -306,29 +359,33 @@ def show_current_blocked(user_id):
     state = state_manager.get_state(user_id)
     if not state:
         return
-    blocked = state.get('blocked_list', [])
-    current_index = state['current_index']
+    blocked = state.get("blocked_list", [])
+    current_index = state["current_index"]
     if current_index >= len(blocked):
-        send_message(user_id, "📭 Больше нет заблокированных", keyboard=create_main_menu_keyboard())
+        send_message(
+            user_id,
+            "📭 Больше нет заблокированных",
+            keyboard=create_main_menu_keyboard(),
+        )
         return
     blocked_user = blocked[current_index]
-    first_name = blocked_user.get('first_name', '')
-    last_name = blocked_user.get('last_name', '')
-    blocked_id = blocked_user['id']
+    first_name = blocked_user.get("first_name", "")
+    last_name = blocked_user.get("last_name", "")
+    blocked_id = blocked_user["id"]
     profile_link = f"https://vk.com/id{blocked_id}"
     age_text = ""
-    if 'bdate' in blocked_user:
+    if "bdate" in blocked_user:
         try:
-            parts = blocked_user['bdate'].split('.')
+            parts = blocked_user["bdate"].split(".")
             if len(parts) == 3:
                 age = 2026 - int(parts[2])
                 age_text = f", {age} лет"
         except:
             pass
     city_text = ""
-    if 'city' in blocked_user:
+    if "city" in blocked_user:
         city_text = f", {blocked_user['city'].get('title', '')}"
-    message = f"🚫 {first_name} {last_name}{age_text}{city_text}\n {profile_link}\n📊 {current_index + 1} из {len(blocked)}"
+    message = f"🚫 {first_name} {last_name}{age_text}{city_text}\n🔗 {profile_link}\n📊 {current_index + 1} из {len(blocked)}"
     keyboard = create_blocked_keyboard(current_index, len(blocked))
     send_message(user_id, message, keyboard=keyboard)
 
@@ -337,32 +394,48 @@ def handle_remove_from_favorites(user_id):
     state = state_manager.get_state(user_id)
     if not state:
         return
-    favorites_list = state.get('favorites_list', [])
-    current_index = state['current_index']
+    favorites_list = state.get("favorites_list", [])
+    current_index = state["current_index"]
     if current_index < len(favorites_list):
         favorite = favorites_list[current_index]
-        candidate_id = favorite['id']
+        candidate_id = favorite["id"]
         removed = db_remove_favorite(user_id, candidate_id)
         if removed:
-            send_message(user_id, f"❌ {favorite['first_name']} удалена из избранного", keyboard=create_main_menu_keyboard())
+            send_message(
+                user_id,
+                f"❌ {favorite['first_name']} удалена из избранного",
+                keyboard=create_main_menu_keyboard(),
+            )
         else:
-            send_message(user_id, f"⚠️ {favorite['first_name']} не в избранном", keyboard=create_main_menu_keyboard())
+            send_message(
+                user_id,
+                f"⚠️ {favorite['first_name']} не в избранном",
+                keyboard=create_main_menu_keyboard(),
+            )
 
 
 def handle_remove_from_blocked(user_id):
     state = state_manager.get_state(user_id)
     if not state:
         return
-    blocked_list = state.get('blocked_list', [])
-    current_index = state['current_index']
+    blocked_list = state.get("blocked_list", [])
+    current_index = state["current_index"]
     if current_index < len(blocked_list):
         blocked_user = blocked_list[current_index]
-        candidate_id = blocked_user['id']
+        candidate_id = blocked_user["id"]
         removed = db_remove_blocked(user_id, candidate_id)
         if removed:
-            send_message(user_id, f"✅ {blocked_user['first_name']} удалена из чёрного списка", keyboard=create_main_menu_keyboard())
+            send_message(
+                user_id,
+                f"✅ {blocked_user['first_name']} удалена из чёрного списка",
+                keyboard=create_main_menu_keyboard(),
+            )
         else:
-            send_message(user_id, f"⚠️ {blocked_user['first_name']} не в чёрном списке", keyboard=create_main_menu_keyboard())
+            send_message(
+                user_id,
+                f"⚠️ {blocked_user['first_name']} не в чёрном списке",
+                keyboard=create_main_menu_keyboard(),
+            )
 
 
 def handle_statistics(user_id):
@@ -397,26 +470,36 @@ def handle_settings(user_id):
 
 
 def handle_change_age(user_id):
-    state_manager.set_state(user_id, {'mode': 'waiting_age', 'current_index': 0})
-    send_message(user_id, " Введите желаемый диапазон возраста в формате:\n`минимум-максимум`\n\nПример: `20-30`", keyboard=None)
+    state_manager.set_state(user_id, {"mode": "waiting_age", "current_index": 0})
+    send_message(
+        user_id,
+        "📅 Введите желаемый диапазон возраста в формате:\n`минимум-максимум`\n\nПример: `20-30`",
+        keyboard=None,
+    )
 
 
 def handle_change_distance(user_id):
-    state_manager.set_state(user_id, {'mode': 'waiting_distance', 'current_index': 0})
-    send_message(user_id, "📍 Введите максимальное расстояние в км:\n\nПример: `100`", keyboard=None)
+    state_manager.set_state(user_id, {"mode": "waiting_distance", "current_index": 0})
+    send_message(
+        user_id,
+        "📍 Введите максимальное расстояние в км:\n\nПример: `100`",
+        keyboard=None,
+    )
 
 
 def handle_admin_menu(user_id):
     from admin import is_admin
+
     if not is_admin(user_id):
         send_message(user_id, "❌ У вас нет прав администратора")
         return
-    message = " Админ-панель\n\nВыберите действие:"
+    message = "🔐 Админ-панель\n\nВыберите действие:"
     send_message(user_id, message, keyboard=create_admin_keyboard())
 
 
 def handle_admin_users(user_id):
     from admin import is_admin, get_all_users
+
     if not is_admin(user_id):
         send_message(user_id, "❌ У вас нет прав администратора")
         return
@@ -426,7 +509,7 @@ def handle_admin_users(user_id):
         return
     message = "👥 Список пользователей:\n\n"
     for i, user in enumerate(users[:10], 1):
-        status = "✅" if user['is_active'] else "🚫"
+        status = "✅" if user["is_active"] else "🚫"
         message += f"{i}. {status} {user['name']} (ID: {user['vk_id']})\n"
     if len(users) > 10:
         message += f"\n... и ещё {len(users) - 10} пользователей"
@@ -435,6 +518,7 @@ def handle_admin_users(user_id):
 
 def handle_admin_stats(user_id):
     from admin import is_admin, get_all_users, get_user_statistics
+
     if not is_admin(user_id):
         send_message(user_id, "❌ У вас нет прав администратора")
         return
@@ -444,24 +528,28 @@ def handle_admin_stats(user_id):
         return
     message = "📊 Статистика пользователей:\n\n"
     for i, user in enumerate(users[:5], 1):
-        stats = get_user_statistics(user['vk_id'])
+        stats = get_user_statistics(user["vk_id"])
         if stats:
             message += (
                 f"{i}. {user['name']} (ID: {user['vk_id']})\n"
                 f"   ❤️ Лайков: {stats['likes']}\n"
                 f"   🚫 Блоков: {stats['blocks']}\n"
-                f"    Матчей: {stats['matches']}\n\n"
+                f"   🎉 Матчей: {stats['matches']}\n\n"
             )
     send_message(user_id, message)
 
 
 def handle_admin_broadcast(user_id):
     from admin import is_admin
+
     if not is_admin(user_id):
         send_message(user_id, "❌ У вас нет прав администратора")
         return
-    state_manager.set_state(user_id, {'mode': 'waiting_broadcast', 'current_index': 0})
-    send_message(user_id, " Введите сообщение для рассылки всем пользователям:\n\nИли напишите 'отмена' для отмены")
+    state_manager.set_state(user_id, {"mode": "waiting_broadcast", "current_index": 0})
+    send_message(
+        user_id,
+        "📢 Введите сообщение для рассылки всем пользователям:\n\nИли напишите 'отмена' для отмены",
+    )
 
 
 def handle_start_chat(user_id, match_num):
@@ -471,45 +559,47 @@ def handle_start_chat(user_id, match_num):
         send_message(user_id, "❌ Неверный номер мэтча")
         return
     match = matches[match_num - 1]
-    state_manager.set_state(user_id, {
-        'mode': 'in_chat',
-        'chat_partner_id': match['vk_id'],
-        'chat_partner_name': f"{match['name']} {match['surname']}"
-    })
+    state_manager.set_state(
+        user_id,
+        {
+            "mode": "in_chat",
+            "chat_partner_id": match["vk_id"],
+            "chat_partner_name": f"{match['name']} {match['surname']}",
+        },
+    )
     send_message(
         user_id,
         f"💬 Чат с {match['name']} {match['surname']}\n\n"
         f"Напишите сообщение или 'выйти' для выхода из чата",
-        keyboard=None
+        keyboard=None,
     )
 
 
 def handle_send_message(user_id, text):
     """Отправляет сообщение в чат."""
     state = state_manager.get_state(user_id)
-    if not state or state.get('mode') != 'in_chat':
+    if not state or state.get("mode") != "in_chat":
         return False
-    partner_id = state.get('chat_partner_id')
-    partner_name = state.get('chat_partner_name', 'Пользователь')
+    partner_id = state.get("chat_partner_id")
+    partner_name = state.get("chat_partner_name", "Пользователь")
     try:
-        from vk_client import get_vk_session
         vk = get_vk_session().get_api()
         vk.messages.send(
             user_id=partner_id,
             message=f"💬 Сообщение от вашего мэтча:\n\n{text}",
-            random_id=0
+            random_id=random.getrandbits(31),
         )
         send_message(user_id, f"✅ Сообщение отправлено {partner_name}")
         return True
     except Exception as e:
         logger.error(f"Ошибка отправки сообщения: {e}")
-        send_message(user_id, f"❌ Ошибка отправки: {e}")
+        send_message(user_id, "❌ Ошибка отправки. Попробуйте позже.")
         return False
 
 
 def handle_exit_chat(user_id):
     """Выходит из чата."""
-    state_manager.set_state(user_id, {'mode': 'main_menu', 'current_index': 0})
+    state_manager.set_state(user_id, {"mode": "main_menu", "current_index": 0})
     send_message(user_id, "✅ Вы вышли из чата", keyboard=create_main_menu_keyboard())
 
 
@@ -518,52 +608,77 @@ def handle_text_message(user_id, text):
     state = state_manager.get_state(user_id)
     if not state:
         return False
-    mode = state.get('mode')
-    
-    if mode == 'waiting_age':
+    mode = state.get("mode")
+
+    if mode == "waiting_age":
         try:
-            parts = text.split('-')
+            parts = text.split("-")
             if len(parts) == 2:
                 age_min = int(parts[0].strip())
                 age_max = int(parts[1].strip())
                 if 14 <= age_min <= age_max <= 99:
-                    update_user_settings(user_id, {'age_min': age_min, 'age_max': age_max})
-                    send_message(user_id, f"✅ Возраст изменён: {age_min} - {age_max} лет", keyboard=create_main_menu_keyboard())
-                    state_manager.set_state(user_id, {'mode': 'main_menu', 'current_index': 0})
+                    update_user_settings(
+                        user_id, {"age_min": age_min, "age_max": age_max}
+                    )
+                    send_message(
+                        user_id,
+                        f"✅ Возраст изменён: {age_min} - {age_max} лет",
+                        keyboard=create_main_menu_keyboard(),
+                    )
+                    state_manager.set_state(
+                        user_id, {"mode": "main_menu", "current_index": 0}
+                    )
                     return True
                 else:
                     send_message(user_id, "❌ Возраст должен быть от 14 до 99 лет")
             else:
-                send_message(user_id, "❌ Неверный формат. Используйте: `минимум-максимум`")
+                send_message(
+                    user_id, "❌ Неверный формат. Используйте: `минимум-максимум`"
+                )
         except ValueError:
             send_message(user_id, "❌ Введите числа")
-    
-    elif mode == 'waiting_distance':
+
+    elif mode == "waiting_distance":
         try:
             distance = int(text.strip())
             if 1 <= distance <= 1000:
-                update_user_settings(user_id, {'max_distance': distance})
-                send_message(user_id, f"✅ Расстояние изменён: {distance} км", keyboard=create_main_menu_keyboard())
-                state_manager.set_state(user_id, {'mode': 'main_menu', 'current_index': 0})
+                update_user_settings(user_id, {"max_distance": distance})
+                send_message(
+                    user_id,
+                    f"✅ Расстояние изменено: {distance} км",
+                    keyboard=create_main_menu_keyboard(),
+                )
+                state_manager.set_state(
+                    user_id, {"mode": "main_menu", "current_index": 0}
+                )
                 return True
             else:
                 send_message(user_id, "❌ Расстояние должно быть от 1 до 1000 км")
         except ValueError:
             send_message(user_id, "❌ Введите число")
-    
-    elif mode == 'waiting_broadcast':
-        if text.lower() == 'отмена':
-            state_manager.set_state(user_id, {'mode': 'main_menu', 'current_index': 0})
+
+    elif mode == "waiting_broadcast":
+        if text.lower() == "отмена":
+            state_manager.set_state(user_id, {"mode": "main_menu", "current_index": 0})
             send_message(user_id, "❌ Рассылка отменена")
             return True
         from admin import send_broadcast
+
         sent_count = send_broadcast(text)
-        state_manager.set_state(user_id, {'mode': 'main_menu', 'current_index': 0})
-        send_message(user_id, f"✅ Сообщение отправлено {sent_count} пользователям", keyboard=create_main_menu_keyboard())
+        state_manager.set_state(user_id, {"mode": "main_menu", "current_index": 0})
+        send_message(
+            user_id,
+            f"✅ Сообщение отправлено {sent_count} пользователям",
+            keyboard=create_main_menu_keyboard(),
+        )
         return True
-    
+
     return False
 
 
 def handle_unknown(user_id):
-    send_message(user_id, "❓ Неизвестная команда.\nИспользуйте кнопки меню 👇", keyboard=create_main_menu_keyboard())
+    send_message(
+        user_id,
+        "❓ Неизвестная команда.\nИспользуйте кнопки меню 👇",
+        keyboard=create_main_menu_keyboard(),
+    )

@@ -1,9 +1,10 @@
 """Модель профиля ВК (анкета, которую ищут)."""
+
 from typing import Optional, List, TYPE_CHECKING
 from sqlalchemy import String, Integer, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import ARRAY
 from database.base import Base
+from database.types import JsonArray
 
 if TYPE_CHECKING:
     from database.models.interaction import UserInteraction
@@ -20,23 +21,35 @@ class VKProfile(Base):
         unique=True,
         nullable=False,
         index=True,
-        comment="ID пользователя ВКонтакте"
+        comment="ID пользователя ВКонтакте",
     )
     first_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     last_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     birth_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     gender: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    photo_urls: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String), nullable=True)
+    photo_urls: Mapped[Optional[List[str]]] = mapped_column(
+        JsonArray(String), nullable=True
+    )
     relation: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     education: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+
+    @property
+    def full_name(self) -> str:
+        """Возвращает полное имя профиля (имя + фамилия)."""
+        parts = []
+        if self.first_name:
+            parts.append(self.first_name)
+        if self.last_name:
+            parts.append(self.last_name)
+        return " ".join(parts) if parts else "Неизвестный пользователь"
 
     # Связи
     interactions: Mapped[List["UserInteraction"]] = relationship(
         "UserInteraction",
         back_populates="profile",
         cascade="all, delete-orphan",
-        lazy="dynamic"
+        lazy="dynamic",
     )
 
     # Many-to-many с интересами
@@ -44,7 +57,7 @@ class VKProfile(Base):
         "Interest",
         secondary="profile_interests",
         back_populates="profiles",
-        lazy="selectin"
+        lazy="selectin",
     )
 
     __table_args__ = (

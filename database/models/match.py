@@ -1,4 +1,5 @@
 """Модели для мэтчей и переписки."""
+
 from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 from sqlalchemy import ForeignKey, String, Text, DateTime, Index, CheckConstraint
@@ -27,27 +28,26 @@ class Match(Base):
     __tablename__ = "matches"
 
     user1_id: Mapped[int] = mapped_column(
-        ForeignKey("bot_users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+        ForeignKey("bot_users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     user2_id: Mapped[int] = mapped_column(
-        ForeignKey("bot_users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+        ForeignKey("bot_users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     matched_at: Mapped[datetime] = mapped_column(
-        DateTime, 
-        nullable=False, 
-        default=datetime.now,
-        index=True
+        DateTime, nullable=False, default=datetime.now, index=True
     )
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False, index=True)
 
     # Связи
-    user1: Mapped["BotUser"] = relationship("BotUser", foreign_keys=[user1_id], back_populates="matches_as_user1")
-    user2: Mapped["BotUser"] = relationship("BotUser", foreign_keys=[user2_id], back_populates="matches_as_user2")
-    messages: Mapped[List["Message"]] = relationship("Message", back_populates="match", cascade="all, delete-orphan")
+    user1: Mapped["BotUser"] = relationship(
+        "BotUser", foreign_keys=[user1_id], back_populates="matches_as_user1"
+    )
+    user2: Mapped["BotUser"] = relationship(
+        "BotUser", foreign_keys=[user2_id], back_populates="matches_as_user2"
+    )
+    messages: Mapped[List["Message"]] = relationship(
+        "Message", back_populates="match", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("idx_match_users", "user1_id", "user2_id", unique=True),
@@ -77,21 +77,14 @@ class Message(Base):
     __tablename__ = "messages"
 
     match_id: Mapped[int] = mapped_column(
-        ForeignKey("matches.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+        ForeignKey("matches.id", ondelete="CASCADE"), nullable=False, index=True
     )
     sender_id: Mapped[int] = mapped_column(
-        ForeignKey("bot_users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+        ForeignKey("bot_users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     text: Mapped[str] = mapped_column(Text, nullable=False)
     sent_at: Mapped[datetime] = mapped_column(
-        DateTime, 
-        nullable=False, 
-        default=datetime.now,
-        index=True
+        DateTime, nullable=False, default=datetime.now, index=True
     )
     is_read: Mapped[bool] = mapped_column(default=False, nullable=False)
 

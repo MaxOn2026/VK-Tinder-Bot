@@ -28,12 +28,14 @@
     - Поддерживает потокобезопасные операции через scoped_session
     - Конфигурация загружается из файла config.py
 """
+
 from contextlib import contextmanager
-from typing import Optional, Generator, Any
+from typing import Optional, Generator, Union, List
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine, Row
 from sqlalchemy.orm import sessionmaker, Session, scoped_session
 from sqlalchemy.pool import QueuePool
-from config import Config  # Ваш файл конфигурации
+from config import Config
 from database.base import Base
 
 
@@ -71,10 +73,11 @@ class DatabaseManager:
             используются значения из config.py.
     """
 
-    def __init__(self):
-        self.engine = None
-        self.session_factory = None
-        self.scoped_session = None
+    def __init__(self) -> None:
+        """Инициализирует DatabaseManager с пустыми атрибутами."""
+        self.engine: Optional[Engine] = None
+        self.session_factory: Optional[sessionmaker] = None
+        self.scoped_session: Optional[scoped_session] = None
 
     def initialize(self, db_url: Optional[str] = None) -> None:
         """Инициализирует подключение к базе данных.
@@ -171,7 +174,9 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def execute_raw(self, query: str, params: dict | None = None) -> Any:
+    def execute_raw(
+        self, query: str, params: Optional[dict] = None
+    ) -> Union[List[Row], int]:
         """Выполняет сырой SQL-запрос.
 
         Полезно для сложных запросов, которые трудно выразить с помощью ORM.
@@ -181,7 +186,9 @@ class DatabaseManager:
             params: Словарь параметров запроса.
 
         Returns:
-            Результаты для SELECT-запросов, количество строк для INSERT/UPDATE/DELETE.
+            Union[List[Row], int]: 
+                - Для SELECT-запросов: список строк результата (List[Row])
+                - Для INSERT/UPDATE/DELETE: количество затронутых строк (int)
 
         Примеры:
             ```python
@@ -190,12 +197,14 @@ class DatabaseManager:
                 "SELECT * FROM users WHERE city = %(city)s",
                 {"city": "Москва"}
             )
+            # results будет List[Row]
 
             # INSERT/UPDATE/DELETE
             count = db_manager.execute_raw(
                 "UPDATE users SET is_active = true WHERE id = %(id)s",
                 {"id": 123}
             )
+            # count будет int
             ```
 
         Примечания:
@@ -203,7 +212,10 @@ class DatabaseManager:
         """
         with self.get_session() as session:
             result = session.execute(text(query), params or {})
-            return result.fetchall() if result.returns_rows else result.rowcount # type: ignore
+            if result.returns_rows:
+                return result.fetchall()
+            else:
+                return result.rowcount
 
     def close(self) -> None:
         """Закрывает все подключения к базе данных.

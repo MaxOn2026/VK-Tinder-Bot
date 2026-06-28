@@ -1,4 +1,5 @@
 """Базовый класс для всех моделей SQLAlchemy."""
+
 from datetime import datetime
 from sqlalchemy import DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -28,10 +29,7 @@ class Base(DeclarativeBase):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.now,
-        server_default=func.now(),
-        nullable=False
+        DateTime, default=datetime.now, server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -39,7 +37,7 @@ class Base(DeclarativeBase):
         onupdate=datetime.now,
         server_default=func.now(),
         server_onupdate=func.now(),
-        nullable=False
+        nullable=False,
     )
 
     def to_dict(self) -> dict:
@@ -57,6 +55,5 @@ class Base(DeclarativeBase):
             ```
         """
         return {
-            column.name: getattr(self, column.name)
-            for column in self.__table__.columns
+            column.name: getattr(self, column.name) for column in self.__table__.columns
         }

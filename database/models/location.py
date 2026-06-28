@@ -1,4 +1,5 @@
 """Модель для работы с географическими данными."""
+
 from typing import Optional
 from decimal import Decimal
 from sqlalchemy import String, Numeric, Index
@@ -21,22 +22,18 @@ class Location(Base):
     __tablename__ = "locations"
 
     city_name: Mapped[str] = mapped_column(
-        String(100), 
-        unique=True, 
-        nullable=False, 
+        String(100),
+        unique=True,
+        nullable=False,
         index=True,
-        comment="Название города (уникально)"
+        comment="Название города (уникально)",
     )
     country: Mapped[str] = mapped_column(String(100), nullable=False, default="Россия")
     latitude: Mapped[Optional[Decimal]] = mapped_column(
-        Numeric(9, 6), 
-        nullable=True,
-        comment="Широта (от -90 до 90)"
+        Numeric(9, 6), nullable=True, comment="Широта (от -90 до 90)"
     )
     longitude: Mapped[Optional[Decimal]] = mapped_column(
-        Numeric(9, 6), 
-        nullable=True,
-        comment="Долгота (от -180 до 180)"
+        Numeric(9, 6), nullable=True, comment="Долгота (от -180 до 180)"
     )
     timezone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     population: Mapped[Optional[int]] = mapped_column(Numeric(10), nullable=True)

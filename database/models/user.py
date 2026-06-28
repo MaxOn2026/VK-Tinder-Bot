@@ -1,4 +1,5 @@
 """Модель пользователя бота (кто ищет знакомства)."""
+
 from typing import Optional, List, TYPE_CHECKING
 from datetime import date
 from sqlalchemy import String, Integer, Date, ForeignKey, Index
@@ -40,11 +41,11 @@ class BotUser(Base):
 
     # Основные поля
     vk_id: Mapped[int] = mapped_column(
-        Integer, 
-        unique=True, 
-        nullable=False, 
+        Integer,
+        unique=True,
+        nullable=False,
         index=True,
-        comment="ID пользователя ВКонтакте"
+        comment="ID пользователя ВКонтакте",
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     surname: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -52,16 +53,10 @@ class BotUser(Base):
 
     # Поля для поиска
     gender: Mapped[int] = mapped_column(
-        Integer, 
-        default=0, 
-        nullable=False,
-        comment="0-не указан, 1-женщина, 2-мужчина"
+        Integer, default=0, nullable=False, comment="0-не указан, 1-женщина, 2-мужчина"
     )
     looking_for: Mapped[int] = mapped_column(
-        Integer, 
-        default=2, 
-        nullable=False,
-        comment="0-не важно, 1-женщины, 2-мужчины"
+        Integer, default=2, nullable=False, comment="0-не важно, 1-женщины, 2-мужчины"
     )
     city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
     age_min: Mapped[int] = mapped_column(Integer, default=18, nullable=False)
@@ -78,7 +73,7 @@ class BotUser(Base):
         "UserInteraction",
         back_populates="user",
         cascade="all, delete-orphan",
-        lazy="dynamic"
+        lazy="dynamic",
     )
 
     # Один пользователь → много мэтчей (как первый участник)
@@ -86,7 +81,7 @@ class BotUser(Base):
         "Match",
         foreign_keys="Match.user1_id",
         back_populates="user1",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
     )
 
     # Один пользователь → много мэтчей (как второй участник)
@@ -94,15 +89,12 @@ class BotUser(Base):
         "Match",
         foreign_keys="Match.user2_id",
         back_populates="user2",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
     )
 
     # Many-to-many с интересами (через промежуточную таблицу)
     interests: Mapped[List["Interest"]] = relationship(
-        "Interest",
-        secondary="user_interests",
-        back_populates="users",
-        lazy="selectin"
+        "Interest", secondary="user_interests", back_populates="users", lazy="selectin"
     )
 
     __table_args__ = (
@@ -130,8 +122,10 @@ class BotUser(Base):
         if not self.birthdate:
             return None
         today = date.today()
-        return today.year - self.birthdate.year - (
-            (today.month, today.day) < (self.birthdate.month, self.birthdate.day)
+        return (
+            today.year
+            - self.birthdate.year
+            - ((today.month, today.day) < (self.birthdate.month, self.birthdate.day))
         )
 
     def __repr__(self) -> str:

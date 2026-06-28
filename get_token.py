@@ -1,4 +1,5 @@
 """Скрипт для получения USER_TOKEN через браузер."""
+
 import webbrowser
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -8,26 +9,26 @@ import threading
 
 class TokenHandler(BaseHTTPRequestHandler):
     """HTTP-сервер для перехвата токена."""
-    
+
     def do_GET(self):
         """Получаем токен из URL."""
         parsed = urllib.parse.urlparse(self.path)
-        
-        if parsed.path == '/callback':
+
+        if parsed.path == "/callback":
             fragment = urllib.parse.parse_qs(parsed.fragment)
-            access_token = fragment.get('access_token', [None])[0]
-            
+            access_token = fragment.get("access_token", [None])[0]
+
             if access_token:
-                print("\n" + "="*50)
+                print("\n" + "=" * 50)
                 print("TOKEN RECEIVED!")
-                print("="*50)
+                print("=" * 50)
                 print(f"\nUSER_TOKEN={access_token}\n")
-                print("="*50)
+                print("=" * 50)
                 print("Copy the token above and paste it into .env file!")
-                print("="*50)
-                
+                print("=" * 50)
+
                 self.send_response(200)
-                self.send_header('Content-type', 'text/html; charset=utf-8')
+                self.send_header("Content-type", "text/html; charset=utf-8")
                 self.end_headers()
                 response = """
                 <html>
@@ -39,17 +40,17 @@ class TokenHandler(BaseHTTPRequestHandler):
                 </body>
                 </html>
                 """
-                self.wfile.write(response.encode('utf-8'))
-                
+                self.wfile.write(response.encode("utf-8"))
+
                 threading.Timer(2.0, lambda: self.server.shutdown()).start()
             else:
                 self.send_response(400)
                 self.end_headers()
-                self.wfile.write(b'Token not found in URL')
+                self.wfile.write(b"Token not found in URL")
         else:
             self.send_response(404)
             self.end_headers()
-    
+
     def log_message(self, format, *args):
         pass
 
@@ -57,9 +58,9 @@ class TokenHandler(BaseHTTPRequestHandler):
 def get_token():
     """Получает токен через браузер."""
     print("Starting server for token...")
-    
-    server = HTTPServer(('localhost', 8080), TokenHandler)
-    
+
+    server = HTTPServer(("localhost", 8080), TokenHandler)
+
     auth_url = (
         "https://oauth.vk.com/authorize?"
         "client_id=2685278&"
@@ -69,17 +70,17 @@ def get_token():
         "display=page&"
         "v=5.199"
     )
-    
+
     print(f"\nOpening browser for authorization...")
     print(f"If browser didn't open, copy this URL:\n{auth_url}\n")
-    
+
     webbrowser.open(auth_url)
-    
+
     print("Waiting for authorization in browser...")
     print("Click 'Allow' in the browser window.\n")
-    
+
     server.serve_forever()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     get_token()

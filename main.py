@@ -1,6 +1,6 @@
 """Точка входа в приложение."""
+
 from bot import run_bot
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_bot()
